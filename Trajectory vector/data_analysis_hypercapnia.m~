@@ -1,0 +1,236 @@
+% Usage: load cell_1.mat file, run Iniciation. Then load cell_* and run Continue loading data
+% Trajectory_vector can select a ROI, or the ROI can be selected previously on img_sequence.
+%% Manually Load ratios and trajectories (iniciacion) 
+% Run only for the first movie
+% traj: all (linear) trajectories in the ROI, depends on the checkbox in trajectory_vector
+% tracksFinal: all trajectories in the ROI
+% Plusi: all the plus-end going vectors in the ROI
+% Ratio of the number of linear trajectories over all trajectories in the cell
+AsymRatio.Lall = Tlin.N/Tall.N;
+% Ratio of the number of plus-end over all trajectories in the cell
+AsymRatio.Pall = length(Tlin.Plusi)/Tall.N;
+% Ratio of the number of plus-end over all linear trajectories in the cell
+AsymRatio.Plin = length(Tlin.Plusi)/Tlin.N;
+% Ratio of the number of minus-end over all trajectories in the cell
+AsymRatio.Mall = length(Tlin.Minusi)/Tall.N;
+% Ratio of the number of minus-end over all linear trajectories in the cell
+AsymRatio.Mlin = length(Tlin.Minusi)/Tlin.N;
+% Pooled trajectories from many movies and/or cells
+traj.Plus = Tlin.traj(Tlin.Plusi);
+traj.Minus = Tlin.traj(Tlin.Minusi); 
+
+%% Continue Loading data
+% Run for the subsequent movies
+% Proportion of asymetric over total trajectories in the cell
+AsymRatio.Lall = [AsymRatio.Lall, Tlin.N/Tall.N];
+% Proportion of plus-end asymetric over total trajectories in the cell
+AsymRatio.Pall = [AsymRatio.Pall, length(Tlin.Plusi)/Tall.N];
+AsymRatio.Plin = [AsymRatio.Plin, length(Tlin.Plusi)/Tlin.N];
+AsymRatio.Mall = [AsymRatio.Mall, length(Tlin.Minusi)/Tall.N];
+AsymRatio.Mlin = [AsymRatio.Mlin, length(Tlin.Minusi)/Tlin.N];
+traj.Plus = [traj.Plus , Tlin.traj(Tlin.Plusi)];
+traj.Minus = [traj.Minus, Tlin.traj(Tlin.Minusi)];
+clear Tall Tlin 
+
+%% Initialize var
+% Run once per cell type
+traj.Plus = [];
+traj.Minus = [];
+%% Automaticly Load trajectory data from folder and pool it together
+files = ls('cell*.mat','-m');                           % -m to get them comma separated
+files = regexp(files, ', ', 'split');                   % split string into the filnames 
+files{length(files)} = files{length(files)}(1:(end-1)); %substract last character form last filename
+for i=1:length(files)
+    aux = load(files{i}, 'T*');
+    traj.Plus = [traj.Plus, aux.Tlin.traj(aux.Tlin.Plusi)];
+    traj.Minus = [traj.Minus, aux.Tlin.traj(aux.Tlin.Minusi)];
+end
+
+%% Analysis=========================================================================================
+%% Contourlength
+% bar plots of pooled data.
+trajLabel = 'Minus';   % 'Plus' or 'Minus' selects the data to analyze 
+T1Label = 'Control';
+T2Label = '1'' post-hyper';
+T3Label = '5'' post-hyper';
+T4Label = '10'' post-hyper';
+% Contourlengths  
+T1CL = contourlength(traj_ctrl.(trajLabel),'total');
+T2CL = contourlength(traj_1min.(trajLabel),'total');
+T3CL = contourlength(traj_5min.(trajLabel),'total');
+T4CL = contourlength(traj_10min.(trajLabel),'total');
+
+% % CL histograms
+% figure   
+% x = 1:5:round(max([T1CL;T2CL])) + 5;
+% subplot(2,1,1)
+% hist(T1CL,x)
+% title([T1Label, ' contourlength histogram; Mean: ', num2str(mean(T1CL),2)])
+% subplot(2,1,2)
+% hist(T2CL,x)
+% title([T2Label,' contourlength histogram; Mean: ', num2str(mean(T2CL),2)])
+
+% bar plots
+figure;
+barerror((1:4)',[mean(T1CL); mean(T2CL); mean(T3CL); mean(T4CL)],...
+    [std(T1CL)/sqrt(length(T1CL)); std(T2CL)/sqrt(length(T2CL)); ...
+    std(T3CL)/sqrt(length(T3CL)); std(T4CL)/sqrt(length(T4CL))], 1,'b','k',...
+    {[T1Label,': ',num2str(mean(T1CL),3)], [T2Label,': ',num2str(mean(T2CL),3)]...
+    [T3Label,': ',num2str(mean(T3CL),3)], [T4Label,': ',num2str(mean(T4CL),3)]});
+title([trajLabel, '-end trajectory''s contourlength'],'FontSize',12)
+
+% t-test
+alpha = 0.05;
+figure; 
+barerror([1;2],[mean(T1CL);mean(T4CL)],...
+    [std(T1CL)/sqrt(length(T1CL)); std(T4CL)/sqrt(length(T4CL))], 1,'b','k',...
+    {[T1Label,' mean = ',num2str(mean(T1CL),3)], [T4Label,' mean = ',num2str(mean(T4CL),3)]});
+% Test
+if ttest2(T4CL, T1CL, alpha, 'right')
+    leyenda = {'t-test',[T4Label,' > ',T1Label, ' (p<',num2str(alpha),')']};
+elseif ttest2(T4CL, T1CL, alpha, 'left')
+    leyenda = {'t-test',[T4Label,' < ',T1Label, ' (p<',num2str(alpha),')']};
+else
+    leyenda = {'t-test',[T4Label,' = ',T1Label, ' (p<',num2str(alpha),')']};
+end
+title(leyenda,'FontSize',12); box on
+
+%% Asymmetric ratio
+alpha = 0.05;
+P1 = AsymRatioPre.Mall;
+P2 = AsymRatioPost.Mall;
+figure; 
+barerror([1;2],[mean(P1);mean(P2)],...
+    [std(P1)/sqrt(length(P1));std(P2)/sqrt(length(P2))]...
+    ,1,'b','k',{['pre-FSK mean = ',num2str(mean(P1),3)],...
+    ['10 min mean = ',num2str(mean(P2),3)]});
+% Test
+if ttest2(P2, P1, alpha, 'right')
+    leyenda = ['Mean of 10 min > Control(p<',num2str(alpha),')'];
+elseif ttest2(P2, P1, alpha, 'left')
+    leyenda = ['Mean of 10 min < Control(p<',num2str(alpha),')'];
+else
+    leyenda = ['Mean of 10 min = Control(p<',num2str(alpha),')'];
+end
+title({'Ratio of minus-end linear, over all trajectories in the cell', leyenda},'FontSize',12); 
+box on
+
+%% Speed  
+dt = 1;  % time between 2 points
+alpha = 0.05;
+MinusPre.Vel = vel(trajMinusPre, dt);
+MinusPost.Vel = vel(trajMinusPost, dt);
+PlusPre.Vel = vel(trajPlusPre, dt);
+PlusPost.Vel = vel(trajPlusPost, dt);
+% Concatenate velocity data for histograms
+MinusPre.Pool = cat(1,MinusPre.Vel{:});
+MinusPost.Pool = cat(1,MinusPost.Vel{:});
+PlusPre.Pool = cat(1,PlusPre.Vel{:});
+PlusPost.Pool = cat(1,PlusPost.Vel{:});
+MinusPre.M = mean(MinusPre.Pool);
+MinusPost.M = mean(MinusPost.Pool);
+PlusPre.M = mean(PlusPre.Pool);
+PlusPost.M = mean(PlusPost.Pool);
+MinusPre.Std = std(MinusPre.Pool);
+MinusPost.Std = std(MinusPost.Pool);
+PlusPre.Std = std(PlusPre.Pool);
+PlusPost.Std = std(PlusPost.Pool);
+% Plot histograms
+figure; nbins = 200;
+subplot(2,2,1); hist(MinusPre.Pool, nbins)
+    xlabel(['Mean: ',num2str(MinusPre.M,3)])
+    Title('Minus-end trajectories, Pre-FSK')
+subplot(2,2,2); hist(MinusPost.Pool, nbins)
+    xlabel(['Mean: ',num2str(MinusPost.M,3)])
+    Title('Minus-end trajectories, 10 min')
+subplot(2,2,3); hist(PlusPre.Pool, nbins)
+    xlabel(['Mean: ',num2str(MinusPost.M,3)])
+    Title('Plus-end trajectories, Pre-FSK')
+subplot(2,2,4); hist(PlusPost.Pool, nbins)
+    xlabel(['Mean: ',num2str(PlusPost.M,3)])
+    Title('Plus-end trajectories, 10 min')
+[~,h1]=suplabel('Velocity distribution','t');
+set(h1,'FontSize',12)
+% Bar plots
+figure;
+subplot(2,1,1); title('Minus-end mean velocity')
+    barerror([1;2],[MinusPre.M;MinusPost.M],...
+    [MinusPre.Std/sqrt(length(MinusPre.Pool));MinusPost.Std/sqrt(length(MinusPost.Pool))]...
+    ,1,'b','k',{['pre-FSK mean = ',num2str(MinusPre.M,3)],...
+    ['10 min mean = ',num2str(MinusPost.M,3)]});
+    % Test
+    if ttest2(MinusPost.Pool, MinusPre.Pool, alpha, 'right')
+        leyenda = ['10 min > Control(p<',num2str(alpha),')'];
+    elseif ttest2(MinusPost.Pool, MinusPre.Pool, alpha, 'left')
+        leyenda = ['10 min < Control(p<',num2str(alpha),')'];
+    else
+        leyenda = ['10 min = Control(p<',num2str(alpha),')'];
+    end
+    title(['Minus-end mean velocity - ', leyenda]); box on;
+subplot(2,1,2); title('Plus-end mean velocity')
+    barerror([1;2],[PlusPre.M;PlusPost.M],...
+    [PlusPre.Std/sqrt(length(PlusPre.Pool));PlusPost.Std/sqrt(length(PlusPost.Pool))]...
+    ,1,'b','k',{['pre-FSK mean = ',num2str(PlusPre.M,3)],...
+    ['10 min mean = ',num2str(PlusPost.M,3)]});
+    % Test
+    if ttest2(PlusPost.Pool, PlusPre.Pool, alpha, 'right')
+        leyenda = ['10 min > Control(p<',num2str(alpha),')'];
+    elseif ttest2(PlusPost.Pool, PlusPre.Pool, alpha, 'left')
+        leyenda = ['10 min < Control(p<',num2str(alpha),')'];
+    else
+        leyenda = ['10 min = Control(p<',num2str(alpha),')'];
+    end
+    title(['Plus-end mean velocity - ', leyenda]); box on;
+[~,h1]=suplabel('Mean Velocity','t');
+set(h1,'FontSize',12)
+
+%% Dwelling times
+alpha = 0.05;
+for i=1:length(trajMinusPre)
+    MinusPre.T(i) = length(trajMinusPre{i});
+end
+for i=1:length(trajMinusPost)
+    MinusPost.T(i) = length(trajMinusPost{i});
+end
+for i=1:length(trajPlusPre)
+    PlusPre.T(i) = length(trajPlusPre{i});
+end
+for i=1:length(trajPlusPost)
+    PlusPost.T(i) = length(trajPlusPost{i});
+end
+MinusPre.TM = mean(MinusPre.T);
+MinusPost.TM = mean(MinusPost.T);
+PlusPre.TM = mean(PlusPre.T);
+PlusPost.TM = mean(PlusPost.T);
+% Bar plots
+figure;
+subplot(2,1,1); 
+    barerror([1;2],[MinusPre.TM;MinusPost.TM],...
+    [std(MinusPre.T)/sqrt(length(MinusPre.T));std(MinusPost.T)/sqrt(length(MinusPost.T))]...
+    ,1,'b','k',{['Control mean = ',num2str(MinusPre.TM,3)],...
+    ['10 min mean = ',num2str(MinusPost.TM,3)]});
+    % Test
+    if ttest2(MinusPost.T, MinusPre.T, alpha, 'right')
+        leyenda = ['10 min > Control (p<',num2str(alpha),')'];
+    elseif ttest2(MinusPost.T, MinusPre.T, .3, 'left')
+        leyenda = ['10 min < Control (p<',num2str(.3),')'];
+    else
+        leyenda = ['10 min = Control (p<',num2str(alpha),')'];
+    end
+    title({'Minus-end mean dwelling time ', leyenda}); box on
+subplot(2,1,2); 
+    barerror([1;2],[PlusPre.TM;PlusPost.TM],...
+    [std(PlusPre.T)/sqrt(length(PlusPre.T));std(PlusPost.T)/sqrt(length(PlusPost.T))]...
+    ,1,'b','k',{['Control mean = ',num2str(PlusPre.TM,3)],...
+    ['10 min mean = ',num2str(PlusPost.TM,3)]});
+    % Test
+    if ttest2(PlusPost.T, PlusPre.T, alpha, 'right')
+        leyenda = ['10 min > Control (p<',num2str(alpha),')'];
+    elseif ttest2(PlusPost.T, PlusPre.T, alpha, 'left')
+        leyenda = ['10 min < Control (p<',num2str(alpha),')'];
+    else
+        leyenda = ['10 min = Control (p<',num2str(alpha),')'];
+    end
+    title({'Plus-end mean dwelling time ', leyenda}); box on
+[~,h1]=suplabel('Mean trajectory time','t');
+set(h1,'FontSize',12)
