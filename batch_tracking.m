@@ -5,7 +5,7 @@ function batch_tracking
 % dbstop if error                 % Start debugger if error 
 
 addpath('~/Documents/MATLAB/file_tools/',...
-    genpath('~/Documents/MATLAB/u-track110523_peakDetector'))
+    genpath('~/Documents/MATLAB/u-track111221_peakDetector'))
 
 %% Load Image folders to process
 PWD = pwd;
@@ -37,9 +37,9 @@ gapCloseParam.diagnostics = 0;
 % Cost functions
 
     % Frame-to-frame linking
-costMatrices(1).funcName = 'costMatLinearMotionLink2';
+costMatrices(1).funcName = 'costMatRandomDirectedSwitchingMotionLink';
     % Gap closing, merging and splitting
-costMatrices(2).funcName = 'costMatLinearMotionCloseGaps2';
+costMatrices(2).funcName = 'costMatRandomDirectedSwitchingMotionCloseGaps';
 
     % Kalman filter functions
     % Memory reservation
@@ -48,13 +48,17 @@ kalmanFunctions.reserveMem = 'kalmanResMemLM';
 kalmanFunctions.initialize = 'kalmanInitLinearMotion';
     % Gain calculation based on linking history
 kalmanFunctions.calcGain = 'kalmanGainLinearMotion';
-    %Time reversal for second and third rounds of linking
+    % Time reversal for second and third rounds of linking
 kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
 % Cost function specific parameters: Frame-to-frame linking
 
-    % Flag for motion model, 0 for random motion, 1 for linear
-parameters.linearMotion = 0;
+    % Flag for motion model, 0 for only random motion;
+    %                        1 for random + directed motion;
+    %                        2 for random + directed motion with the
+    % possibility of instantaneous switching to opposite direction (but 
+    % same speed),i.e. something like 1D diffusion.
+parameters.linearMotion = 3;
     % Search radius lower limit
 parameters.minSearchRadius = 2;
     % Search radius upper limit
@@ -130,7 +134,7 @@ clear parameters
 
 % Additional input
 
-saveResults.dir = cd;                           % save results to current folder 
+saveResults.dir = pwd;                          % save results to current folder 
 saveResults.filename = 'TrackingParam.mat';     % name of file where input and output are saved
 saveResults = 0;                                % don't save results
     % Verbose
