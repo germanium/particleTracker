@@ -302,7 +302,7 @@ end
 if newFigure
 
     %open new figure window
-    figure
+    h = figure;
 
     if ~isempty(image) %if user supplied an image
         tmpImage = image(image~=0);

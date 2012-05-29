@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 29-May-2012 11:20:19
+% Last Modified by GUIDE v2.5 29-May-2012 13:27:36
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -237,8 +237,8 @@ gapCloseParam.diagnostics = 1;
 %                        2 for random + directed motion with the
 % possibility of instantaneous switching to opposite direction (but 
 % same speed),i.e. something like 1D diffusion.
-LinealCheck = findall(0,'Tag','LinealCheck');
-parameters.linearMotion = get(LinealCheck,'Value');
+linearH = findall(0,'Tag','linear_popup');
+parameters.linearMotion = get(linearH,'Value') - 1;
     % Search radius lower limit
 parameters.minSearchRadius = 2;
     % Search radius upper limit
@@ -547,3 +547,26 @@ function edit4_Callback(hObject, eventdata, handles)
 
 
 function edit5_Callback(hObject, eventdata, handles)
+
+
+% --- Executes on selection change in linear_popup.
+function linear_popup_Callback(hObject, eventdata, handles)
+% hObject    handle to linear_popup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns linear_popup contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from linear_popup
+
+
+% --- Executes during object creation, after setting all properties.
+function linear_popup_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to linear_popup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
