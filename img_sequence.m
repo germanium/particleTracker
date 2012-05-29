@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 14-Sep-2011 15:16:26
+% Last Modified by GUIDE v2.5 29-May-2012 11:20:19
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -45,16 +45,17 @@ else
 end
 
 
-
 % End initialization code - DO NOT EDIT
 
 function Menu_Callback(hObject, eventdata, handles)
+
 
 % --- Outputs from this function are returned to the command line.
 function varargout = img_sequence_OutputFcn(hObject, eventdata, handles) 
 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
+
 
 %% --- Executes just before img_sequence is made visible.
 function img_sequence_OpeningFcn(hObject, eventdata, handles, varargin)
@@ -106,20 +107,22 @@ for i=1:Nf
     Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
 end
 
-axes('position',[.3  .1  .8  .8])
+axes('position',[0.2938  0.0642  0.6983  0.8523])
 
 imshow(Idisp{i})
+htext = findall(0,'Tag','text1');          % Display frame #
+set(htext,'String','Frame # 1');
 
-slider=findall(0,'Tag','slider1');
+slider = findall(0,'Tag','slider1');
 set(slider, 'Max', Nf,'Min', 1, 'Value', 1, 'SliderStep', [1/Nf 5/Nf]);
-
-handles.FileName = ImgFileName{1}(1:(end-7));                   % for 3 digits is -8
+                                            % for 3 digits is -8
+handles.FileName = ImgFileName{1}(1:(end-7));   
 handles.PathName = ImgPathName;
 handles.Nf = Nf;
 handles.I = I;
 handles.Idisp = Idisp;
 
-if isfield(handles,'movieInfo')                                 % Clear movieInfo
+if isfield(handles,'movieInfo')             % Clear movieInfo
     handles = rmfield(handles,'movieInfo');                         
 end
 
@@ -129,7 +132,7 @@ guidata(hObject, handles);
 % Load all tifs in folder
 function Load_all_Callback(hObject, eventdata, handles)
 FILES = dir('*.tif'); 
-Nf = length(FILES);                                  % Nuber of frames
+Nf = length(FILES);                         % Nuber of frames
 
 I = cell(Nf,1);
 Idisp = cell(Nf,1);
@@ -137,20 +140,23 @@ for i=1:Nf
     I{i} = imread(FILES(i).name);    
     Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
 end
+                                            % Set the position of the image
+axes('Position',[0.2938  0.0642  0.6983  0.8523])
 
-axes('Position',[.3  .1  .8  .8])
 imshow(Idisp{i})
+htext = findall(0,'Tag','text1');          % Display frame #
+set(htext,'String','Frame # 1');
 
 slider=findall(0,'Tag','slider1');
 set(slider, 'Max', Nf,'Min', 1, 'Value', 1, 'SliderStep', [1/Nf 5/Nf]);
-
-handles.FileName = FILES(1).name(1:(end-7));                       % for 3 digits is -8
+                                            % for 3 digits is -8
+handles.FileName = FILES(1).name(1:(end-7));  
 handles.PathName = pwd;
 handles.Nf = Nf;
 handles.I = I;
 handles.Idisp = Idisp;
 
-if isfield(handles,'movieInfo')                                 % Clear movieInfo
+if isfield(handles,'movieInfo')             % Clear movieInfo
     handles = rmfield(handles,'movieInfo');                         
 end
 
@@ -161,7 +167,7 @@ guidata(hObject, handles);
 function apply_detection_Callback(hObject, eventdata, handles)
 
 bitDepth = str2double(get(handles.edit_bitDepth, 'String'));            
-ROIcheck = findall(0,'Tag','ROIcheck');         % Select Region Of Interest
+ROIcheck = findall(0,'Tag','ROIcheck');      % Select Region Of Interest
 
 if (get(ROIcheck,'Value'))
     ROI_dialog();
@@ -193,9 +199,9 @@ function apply_track_Callback(hObject, eventdata, handles)
 
 %% Cost functions
     % Frame-to-frame linking
-costMatrices(1).funcName = 'costMatLinearMotionLink2';
+costMatrices(1).funcName = 'costMatRandomDirectedSwitchingMotionLink';
     % Gap closing, merging and splitting
-costMatrices(2).funcName = 'costMatLinearMotionCloseGaps2';
+costMatrices(2).funcName = 'costMatRandomDirectedSwitchingMotionCloseGaps';
 
 %% Kalman filter functions
     % Memory reservation
@@ -211,7 +217,7 @@ kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
     % Gap closing time window. Depends on SNR and fluorophore blinking. Critical
     %  if too small or too large. Robust in proper range (default 10 frames)
-gapCloseParam.timeWindow = str2num(get(findall(0,'Tag','edit6'), 'String'));
+gapCloseParam.timeWindow = str2num(get(findall(0,'Tag','gapClose_edit'), 'String'));
     % Flag for merging and splitting
 MergeCheck = findall(0,'Tag','MergeCheck');
 gapCloseParam.mergeSplit = get(MergeCheck,'Value');
@@ -226,7 +232,11 @@ gapCloseParam.minTrackLen = str2num(get(findall(0,'Tag','edit7'), 'String'));
 gapCloseParam.diagnostics = 1;
 
 %% Cost function specific parameters: Frame-to-frame linking
-    % Flag for motion model, 0 for random motion, 1 for linear
+% Flag for motion model, 0 for only random motion;
+%                        1 for random + directed motion;
+%                        2 for random + directed motion with the
+% possibility of instantaneous switching to opposite direction (but 
+% same speed),i.e. something like 1D diffusion.
 LinealCheck = findall(0,'Tag','LinealCheck');
 parameters.linearMotion = get(LinealCheck,'Value');
     % Search radius lower limit
@@ -441,10 +451,10 @@ function MergeCheck_Callback(hObject, eventdata, handles)
 function checkbox1_Callback(hObject, eventdata, handles)
 
 
-function edit6_Callback(hObject, eventdata, handles)
+function gapClose_edit_Callback(hObject, eventdata, handles)
 
 
-function edit6_CreateFcn(hObject, eventdata, handles)
+function gapClose_edit_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');

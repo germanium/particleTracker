@@ -96,9 +96,10 @@
 % If filename body has a number it must be separated. ie. can't be XX1001, can be XX1-001
 % Also, number has to start with 001 not 000
 % Run from within desired .tif folder 
+% I doesn't work for linux with avi and mov format. It works from mac
 
 TIFS = dir('*.tif');
 load tracksFinal.mat
 
 overlayTracksMovieNew(tracksFinal, [], 60, 1, 'movie', [], 0, 1, 0,[], ...
-     0, 1, [], 1, 1, [pwd '/' TIFS(1).name], [], 5,[],'avi', 0.15);
+     0, 1, [], 1, 1, [pwd '/' TIFS(1).name], [], 5,[],'mov', 0.15);

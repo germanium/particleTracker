@@ -25,6 +25,8 @@ function [manualpts, autopts, matches, handles] = comparetracks(dataFile, tracks
 % the percentage of false positives, and row 7 is the percentage of false
 % negatives.
 
+% Donald 2011
+
 % Load manual and automatic tracking data files
 manual = mtrackj(dataFile);
 auto = tracks2cell(tracksFinal);
