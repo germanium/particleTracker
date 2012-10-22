@@ -136,13 +136,13 @@ strg1 = sprintf('%%.%dd',s1);
 % of the cell background, stored in stdList
 stdList = nan(nIm,1);
 count = 1;
-progressText(0,'Filtering images for comet detection');
+progressText(0,'Filtering images for peak detection');
 
 % create kernels for gauss filtering
 blurKernelLow  = fspecial('gaussian', 21, 1);
 blurKernelHigh = fspecial('gaussian', 21, 4);
-    
-for iFrame = 1:nIm
+                        
+for iFrame = 1:nIm          % Loop though frames and filter 
 
     progressText(count/nIm,'Filtering images for peak detection');
     
@@ -181,10 +181,10 @@ for iFrame = 1:nIm
 end
 
 
-% loop thru frames and detect
+
 count = 1;
 progressText(0,'Detecting peaks');
-for iFrame = 1:nIm
+for iFrame = 1:nIm                          % loop thru frames and detect
 
     progressText(count/nIm,'Detecting peaks');
 
@@ -209,7 +209,7 @@ for iFrame = 1:nIm
         eF = iFrame+1;
     end
     stepSize = mean(stdList(sF:eF));        % stdList is the std on the (estimated) cell
-    thresh = 3*stepSize;                    %  area
+    thresh = 3*stepSize;                    %  area.
     
     % we assume each step size down the intensity profile should be on
     % the order of the size of the background std; here we find how many
@@ -305,7 +305,7 @@ for iFrame = 1:nIm
     % make structure compatible with Khuloud's tracker
     movieInfo(iFrame,1).xCoord = xCoord;
     movieInfo(iFrame,1).yCoord = yCoord;
-    movieInfo(iFrame,1).amp = amp;
+    movieInfo(iFrame,1).amp = amp;          % amp should be intensity not area!
     movieInfo(iFrame,1).int = featI;
 
 
@@ -355,7 +355,7 @@ fImg = locmax2d(filterDiff,[20 20],1);
 
 % get indices of local maxima
 idx = find(fImg);
-[r c] = find(fImg);
+[r, c] = find(fImg);
 
 % calculate percentiles of max intensities to use for rough idea of cell
 % region

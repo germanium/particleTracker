@@ -58,7 +58,7 @@ kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
     %                        2 for random + directed motion with the
     % possibility of instantaneous switching to opposite direction (but 
     % same speed),i.e. something like 1D diffusion.
-parameters.linearMotion = 3;
+parameters.linearMotion = 2;
     % Search radius lower limit
 parameters.minSearchRadius = 2;
     % Search radius upper limit
@@ -144,6 +144,8 @@ probDim = 2;
 
 
 %% Cycle through folders 
+tic;
+
 for i=1:length(T_DIR);                          
     clear movieInfo tracksFinal
 %     clear java
@@ -190,5 +192,7 @@ for i=1:length(T_DIR);
         end
     end
 end
+
+toc
 
 cd(PWD)

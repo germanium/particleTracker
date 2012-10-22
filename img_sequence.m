@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 29-May-2012 13:27:36
+% Last Modified by GUIDE v2.5 12-Jul-2012 14:55:39
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -62,12 +62,13 @@ function img_sequence_OpeningFcn(hObject, eventdata, handles, varargin)
 
 % Choose default command line output for img_sequence
 handles.output = hObject;                                        
-handles.PathName = '~/Documents/Data';  % Default initial directory 
+handles.PathName = '/DIskC/Data/';  % Default initial directory 
 handles.fr = 1;                         % Starting frame
-addpath('~/Documents/MATLAB/figure_tools/')
+addpath('~/Documents/MATLAB/figure_tools/',...
+    '~/Documents/MATLAB/u-track_packages/spotDetector_101410/',...
+    '~/Documents/MATLAB/file_tools/')
 
 guidata(hObject, handles);
-
 
 
 %% --- Executes on slider movement.
@@ -93,19 +94,41 @@ guidata(hObject, handles);
 
 
 % -------------Load Images-----------------------------
-function load_img_Callback(hObject, eventdata, handles)
+function load_img_Callback(hObject, ~, handles)
 
-[ImgFileName,ImgPathName] = uigetfile({'*.tif';'*.stk';'*.*'}, 'Select images',...
+[ImgFileName,ImgPathName] = uigetfile({'*.tif';'*.stk';'*.avi';'*.*'}, 'Select images',...
     'MultiSelect', 'on');
 cd(ImgPathName) 
-Nf = length(ImgFileName);                                   % Number of frames
 
-I = cell(Nf,1);
-Idisp = cell(Nf,1);
-for i=1:Nf
-    I{i} = imread([ImgPathName,ImgFileName{i}]);    
-    Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+
+if ~iscell(ImgFileName)                     % If tif file is a movie
+    data = bfopen([ImgPathName,ImgFileName]);
+    data = data{1};
+    Nf = size(data,1);                      % # of frames                                            
+    I = cell(1,Nf);
+    Idisp = cell(Nf,1);
+    
+    for i=1:Nf
+        I{i} = data{i,1};   
+        Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+    end
+    
+    handles.FileName = ImgFileName(1:(end-4)); 
+    
+else                                        % If each tif is a frame
+    Nf = length(ImgFileName);               % # of frames
+    I = cell(Nf,1);
+    Idisp = cell(Nf,1);
+    for i=1:Nf
+        I{i} = imread([ImgPathName,ImgFileName{i}]);
+        Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+    end
+                                            % For 3 digits is -8
+    handles.FileName = ImgFileName{1}(1:(end-7));   
 end
+
+mkdir(handles.FileName);                    % To save results in a new folder
+cd(handles.FileName)
 
 axes('position',[0.2938  0.0642  0.6983  0.8523])
 
@@ -115,8 +138,7 @@ set(htext,'String','Frame # 1');
 
 slider = findall(0,'Tag','slider1');
 set(slider, 'Max', Nf,'Min', 1, 'Value', 1, 'SliderStep', [1/Nf 5/Nf]);
-                                            % for 3 digits is -8
-handles.FileName = ImgFileName{1}(1:(end-7));   
+
 handles.PathName = ImgPathName;
 handles.Nf = Nf;
 handles.I = I;
@@ -165,6 +187,7 @@ guidata(hObject, handles);
 
 % --- Executes on button press in apply_detection.
 function apply_detection_Callback(hObject, eventdata, handles)
+Nf = length(handles.I);
 
 bitDepth = str2double(get(handles.edit_bitDepth, 'String'));            
 ROIcheck = findall(0,'Tag','ROIcheck');      % Select Region Of Interest
@@ -172,13 +195,33 @@ ROIcheck = findall(0,'Tag','ROIcheck');      % Select Region Of Interest
 if (get(ROIcheck,'Value'))
     ROI_dialog();
     handles.BW = roipoly();
-    for i=1:length(handles.I)
+    for i=1:Nf
         handles.I{i} = handles.BW.*handles.I{i};
     end
     imshow(handles.Idisp{1});
 end
 
-movieInfo = peakDetector(handles.I, bitDepth, 0, []);
+detectionH = findall(0,'Tag','detection_popup');
+
+if get(detectionH,'Value') == 1             % Use DoG      
+    movieInfo = peakDetector(handles.I, bitDepth, 0, []);
+    
+else                                        % Use multiscale products
+    % initialize structure to store info for tracking
+    [movieInfo(1:Nf,1).xCoord] = deal([]);
+    [movieInfo(1:Nf,1).yCoord] = deal([]);
+    [movieInfo(1:Nf,1).amp] = deal([]);
+    % trackCloseGapsKalmanSparse only uses xCoord y yCoord
+    
+    progressText(0, 'Detecting peaks')
+    for i=1:Nf
+        frameInfo = spotDetector(double(handles.I{i}));
+        movieInfo(i,1).xCoord = frameInfo.xCoord;
+        movieInfo(i,1).yCoord = frameInfo.yCoord;
+        movieInfo(i,1).amp = [frameInfo.area zeros(length(frameInfo.area))];
+        progressText(i/Nf, 'Detecting peaks')
+    end
+end
 
 imshow(handles.Idisp{1});
 hold on
@@ -352,6 +395,7 @@ assignin('base','Tr_parameters', handles.Tr_parameters)
 
 Tr_parameters = handles.Tr_parameters;                  % for saving 
 im = handles.I{1};
+
 if ~exist([saveResults.dir,'/tracksFinal.mat'] ,'file')     % Don't overwrite if exists
     save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
     print(gcf,'-dpng ','Trajectories.png');
@@ -367,7 +411,7 @@ end
 
 
 % --------------------Cage Diameter-------------------------
-function cage_diameter_Callback(hObject, eventdata, handles)
+function cage_diameter_Callback(~, ~, handles)
 window = 20;
 CD = cell(length(handles.T), 1);
 for i=1:length(handles.T)
@@ -389,7 +433,7 @@ end
 
 
 % --- Executes on button press in AnalyzeFrame.
-function AnalyzeFrame_Callback(hObject, eventdata, handles)
+function AnalyzeFrame_Callback(~, ~, handles)
 
 fr = handles.fr; 
 bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
@@ -407,12 +451,12 @@ hold off
 
 %% UI functions ------------------------------------------------------------
 
-function edit8_Callback(hObject, eventdata, handles)
+function edit8_Callback(~, ~, ~)
 
-function analysis_Callback(hObject, eventdata, handles)
+function analysis_Callback(~, ~, ~)
 
 % --- Executes during object creation, after setting all properties.
-function edit8_CreateFcn(hObject, eventdata, handles)
+function edit8_CreateFcn(hObject, ~, ~)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
@@ -423,11 +467,11 @@ end
 function checkbox2_Callback(hObject, eventdata, handles)
 
 
-function edit9_Callback(hObject, eventdata, handles)
+function edit9_Callback(~, eventdata, handles)
 
 
 % --- Executes during object creation, after setting all properties.
-function edit9_CreateFcn(hObject, eventdata, handles)
+function edit9_CreateFcn(hObject, eventdata, ~)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
@@ -445,13 +489,13 @@ end
 
 
 % --- Executes on button press in MergeCheck.
-function MergeCheck_Callback(hObject, eventdata, handles)
+function MergeCheck_Callback(hObject, ~, ~)
 
 % --- Executes on button press in checkbox1.
-function checkbox1_Callback(hObject, eventdata, handles)
+function checkbox1_Callback(hObject, ~, handles)
 
 
-function gapClose_edit_Callback(hObject, eventdata, handles)
+function gapClose_edit_Callback(~, eventdata, ~)
 
 
 function gapClose_edit_CreateFcn(hObject, eventdata, handles)
@@ -562,6 +606,29 @@ function linear_popup_Callback(hObject, eventdata, handles)
 % --- Executes during object creation, after setting all properties.
 function linear_popup_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to linear_popup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in detection_popup.
+function detection_popup_Callback(hObject, eventdata, handles)
+% hObject    handle to detection_popup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns detection_popup contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from detection_popup
+
+
+% --- Executes during object creation, after setting all properties.
+function detection_popup_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to detection_popup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
