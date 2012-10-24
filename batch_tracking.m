@@ -7,9 +7,6 @@ function batch_tracking
 addpath('~/Documents/MATLAB/file_tools/',...
     genpath('~/Documents/MATLAB/u-track111221_peakDetector'))
 
-%% Load Image folders to process
-PWD = pwd;
-T_DIR = uipickfiles('Prompt','Select folders where the *.tif files are');
 
 %% Detection parameters
 
@@ -138,55 +135,69 @@ saveResults.dir = pwd;                          % save results to current folder
 saveResults.filename = 'TrackingParam.mat';     % name of file where input and output are saved
 saveResults = 0;                                % don't save results
     % Verbose
-verbose = 0;
+verbose = 1;
     % Problem dimension
 probDim = 2;
 
-
 %% Cycle through folders 
-tic;
 
+PWD = pwd;                                      % Load Image folders to process
+T_DIR = uipickfiles('Prompt','Select *.dv movies');
+
+tic;
 for i=1:length(T_DIR);                          
     clear movieInfo tracksFinal
 %     clear java
     
-    cd(T_DIR{i})
-    disp(T_DIR{i})
+    [pathstr, fname] = fileparts(T_DIR{i});
+    cd(pathstr)
+    mkdir(fname)
+    cd(fname)
+   
+    fprintf(['\n--------Processing movie ' fname '--------\n\n'])
+                                            
+    data = bfopen(T_DIR{i});                % Load data 
+    I = {data{1}{:,1}};
     
-    TIFS = dir('*.tif');                       % VERY IMPORTANT THAT RESULTS ARE SORTED
-    N = length(TIFS);                          % ALPHABETICALLY                     
-    I = cell(1,N);
-
-    for j=1:N
-        I{j} = imread(TIFS(j).name);   
-    end
-    
-    % Detection     
+                                            % Detection     
     movieInfo = peakDetector(I, bitDepth, 0, []);
-    
-    % tracking function call
+                                            % Tracking function call
     [tracksFinal,~,~] = trackCloseGapsKalmanSparse(movieInfo,...
         costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
     
+% -----------------------Analysis---------------------------------
+
+    pxSize = 0.322;                         % In um/px
+    DT = 0.15;                              % In seconds
+    dtMaxFr = round(1.5/DT);                % 1.5 seconds to frames
     
-    if isempty(tracksFinal)
-                                            % No tracks 
+    T = tracks2cell(tracksFinal);       
+    T_msd = msdMaxDt(T,DT,dtMaxFr,pxSize);
+    [D, alpha] = diffCoeff(T_msd,dtMaxFr,2);
+    DA = [D', alpha'];
+    DAmean = nanmean(DA,1);
+    
+% -----------------------Save Results------------------------------
+
+    if isempty(tracksFinal)                 % If no tracks
         disp('No tracks detected to plot');
     else
                                             % Plot trajectories
-                                            % OpenGL por hardware is faster
-        htracks = figure('Renderer','OpenGL','Visible','off'); 
+        htracks = figure('Renderer','OpenGL','Visible','off'); % OpenGL por hardware is faster
         imshow(I{1},[])
         plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
-        title(T_DIR{i}, 'Interpreter', 'none')
-        
-        % save results
+        title(fname)
+                                            % Save parameters 
         Tr_parameters = {['Maximum gap length: ', num2str(gapCloseParam.timeWindow)];...
             ['Minimum track segment length: ', num2str(gapCloseParam.minTrackLen)]};
         im = I{1};
-        
-        if ~exist('/tracksFinal.mat' ,'file')        % Don't overwrite if exists
+                                            % Don't overwrite if exists
+        if ~exist('/tracksFinal.mat' ,'file')        
             save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
+            saveASCII(tracksFinal)             % Save tracks to ascii
+            save('D_and_alpha.txt', 'DA', '-ascii')
+            save('mean_D_and_A.txt','DAmean', '-ascii')
+            
             print(htracks,'-dpng','Trajectories.png');
             close(htracks)
         end
@@ -196,3 +207,42 @@ end
 toc
 
 cd(PWD)
+
+
+function saveASCII(tracksFinal)
+% Save tracksFinal in Gianguido format
+T = tracks2cellT(tracksFinal);      % Gaps are not interpolated.
+for i=1:length(T)
+    Tfilename = 'tracks.txt';
+    M = [i*ones(length(T{i}),1) - 1, T{i}];
+    
+    if (exist(Tfilename,'file') ~= 2)
+        dlmwrite(Tfilename, M, 'delimiter', '\t','precision', 6)
+    elseif (exist(Tfilename,'file') == 2)
+        dlmwrite(Tfilename, M,'-append','delimiter', '\t','precision', 6)
+    end
+end
+
+
+function msd = msdMaxDt(T,DT,dtMaxFr,pxSize)
+% DT     - Time interval, in seconds
+% dtMax  - Max dt to calculate MSD, in seconds
+% pxSize - Pixel size in um
+
+Nt = length(T);                             % Number of walkers
+msd = cell(1,Nt);
+
+for i = 1:Nt
+    Np = size(T{i},1);
+    msd{i} = zeros(dtMaxFr,2);
+    
+    for dt = 1:dtMaxFr                      % Time interval (Dt)
+        
+        lag = 1:(Np-dt);                    % Shift
+                                            % Average of all shifted time windows of length dt
+        meanRsq = mean(sum((T{i}(lag+dt,:) - T{i}(lag,:)).^2, 2));
+        
+        msd{i}(dt+1,1) = dt*DT;             % dt+1 to make first point cero
+        msd{i}(dt+1,2) = pxSize^2*meanRsq;  
+    end
+end
