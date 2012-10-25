@@ -335,10 +335,10 @@ if selfAdaptive
     if verbose
         disp('Linking features backwards ...');
     end
-    [dummy,dummy,kalmanInfoLink,dummy,linkingCosts] = linkFeaturesKalmanSparse(...
+    [~,~,kalmanInfoLink,~,linkingCosts] = linkFeaturesKalmanSparse(...
         movieInfo(end:-1:1),costMatrices(1).funcName,costMatrices(1).parameters,...
         kalmanFunctions,probDim,kalmanInfoLink,linkingCosts,verbose);
-    clear dummy
+    
 
     %time-reverse Kalman filter information
     % -- USER DEFINED FUNCTION -- %

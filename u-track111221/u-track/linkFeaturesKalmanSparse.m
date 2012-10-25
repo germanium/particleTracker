@@ -280,11 +280,14 @@ featLifetime = ones(movieInfo(1).num,1);
 % % % numPotLinksPerFeature = [];
 
 %get number of particles in whole movie and calculate a worst-case scenario
-%number of tracks
-%it can be that the final number of tracks is even larger than this worst
-%case scenario. Every time the auxiliary matrices (defined below) run out
-%of rows, another "numTracksWorstCase" rows are added to them.
-numTracksWorstCase = round(sum(numFeatures)/10);
+%number of tracks it can be that the final number of tracks is even larger than 
+%this worst case scenario. Every time the auxiliary matrices (defined below) run 
+%out of rows, another "numTracksWorstCase" rows are added to them.
+% It was 10, I changed it to 2 since in the case the the number of
+% features in frame1 was 4 and in frame was 55 it gave me error. This affects movies 
+% where there are a lot of small trajectories and big difference in the number 
+% of features between frames. gP
+numTracksWorstCase = round(sum(numFeatures)/2);
 
 %initialize auxiliary matrices for storing information related to tracks
 %that end in the middle of the movie
@@ -324,7 +327,7 @@ for iFrame = 1 : numFrames-1
             if any(costMat(:)~=nonlinkMarker) %if there are potential links
 
                 %link features based on cost matrix, allowing for birth and death
-                [link12,link21] = lap(costMat,nonlinkMarker,0);
+                [~,link21] = lap(costMat,nonlinkMarker,0);
 
                 %get indices of features in 2nd frame that are connected to features in 1st frame
                 indx2C = find(link21(1:numFeaturesFrame2)<=numFeaturesFrame1);
