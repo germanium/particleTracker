@@ -1,21 +1,13 @@
-function [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir)
-% plusTipCometDetector locates plus tip comets (or other blobs) in a movie stack
+function [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir, VERBOSE)
+% [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir, VERBOSE)
 %
-%SYNOPSIS [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir)
 %
-%INPUT  projData           : structure containing fields .anDir, which gives
-%                           the full path to the roi_x directory
-%                           and .imDir, which gives the full path to the
-%                           folder containing the images for overlay.
-%                           if given as [], program will query user for
-%                           roi_x directory.
-%       timeRange         : row vector of the form [startFrame endFrame]
-%                           indicating time range to plot. if not given or 
-%                           given as [], tracks from the whole movie will
-%                           be displayed. 
+%INPUT  I                 : Image stack, cell array with one frame per array
 %       bitDepth          : bit depth of the images - should be 12, 14, or 16
 %       savePlots         : 1 to save overlay plots of detection results, 
-%                           0 if not
+%                           0 if not. Default true
+%       outDir            : Output directory. Default pwd
+%       VERBOSE           : Verbose option. Default true
 %
 %OUTPUT movieInfo         : nFrames-structure containing x/y coordinates
 %       stdList           : nFrames-vector containing the standard
@@ -94,6 +86,10 @@ if nargin<4 || isempty(outDir)
     outDir = pwd;
 end
 
+if nargin<5 
+    VERBOSE = true;
+end
+
 % make feat directory if it doesn't exist from batch
 featDir = [outDir '/feat'];
 if isdir(featDir)
@@ -136,15 +132,18 @@ strg1 = sprintf('%%.%dd',s1);
 % of the cell background, stored in stdList
 stdList = nan(nIm,1);
 count = 1;
-progressText(0,'Filtering images for peak detection');
+if VERBOSE
+    progressText(0,'Filtering images for peak detection');
+end
 
 % create kernels for gauss filtering
 blurKernelLow  = fspecial('gaussian', 21, 1);
 blurKernelHigh = fspecial('gaussian', 21, 4);
                         
 for iFrame = 1:nIm          % Loop though frames and filter 
-
-    progressText(count/nIm,'Filtering images for peak detection');
+    if VERBOSE
+        progressText(count/nIm,'Filtering images for peak detection');
+    end
     
     % load image and normalize to 0-1
 %     fileNameIm = [char(listOfImages(iFrame,2)) filesep char(listOfImages(iFrame,1))];
@@ -183,11 +182,14 @@ end
 
 
 count = 1;
-progressText(0,'Detecting peaks');
+if VERBOSE
+    progressText(0,'Detecting peaks');
+end
+
 for iFrame = 1:nIm                          % loop thru frames and detect
-
-    progressText(count/nIm,'Detecting peaks');
-
+    if VERBOSE
+        progressText(count/nIm,'Detecting peaks');
+    end
     if iFrame==1
         tic
     end
@@ -217,7 +219,8 @@ for iFrame = 1:nIm                          % loop thru frames and detect
     % should be taller than 3*std
     nSteps = round((nanmax(filterDiff(:))-thresh)/stepSize);
     threshList = linspace(nanmax(filterDiff(:)),thresh,nSteps);
-
+    slice2 = zeros(size(img));              % In case it doesn't detect anything
+    
     % compare features in z-slices startest from the highest one
     for p = 1:length(threshList)-1
 
@@ -263,19 +266,8 @@ for iFrame = 1:nIm                          % loop thru frames and detect
     featureMap(vertcat(featProp2(goodFeatIdx,1).PixelIdxList)) = 1;
     [featMapFinal,nFeats] = bwlabel(featureMap);
     
-    %     verDate = version('-date');
-    %     if str2double(verDate(end-3:end))>=2008
     featPropFinal = regionprops(featMapFinal,filterDiff,...
         'PixelIdxList','Area','WeightedCentroid','MaxIntensity'); %'Extrema'
-    %     else
-    %         featPropFinal = regionprops(featMapFinal,'PixelIdxList','Area','Centroid');
-    %         for iFeat=1:length(featPropFinal)
-    %             featPropFinal(iFeat,1).WeightedCentroid = ...
-    %                 featPropFinal(iFeat,1).Centroid; % centroid's close enough...
-    %             featPropFinal(iFeat,1).MaxIntensity = ...
-    %                 max(filterDiff(featPropFinal(iFeat,1).PixelIdxList)); % find maximum intensity
-    %         end
-    %     end
 
     if nFeats==0
         yCoord = [];
