@@ -253,13 +253,15 @@ for iFrame = 1:nIm                          % loop thru frames and detect
 
     % label slice2 again and get region properties
     featMap2 = bwlabel(slice2);
-    featProp2 = regionprops(featMap2,'PixelIdxList','Area');
+    featProp2 = regionprops(featMap2,'PixelIdxList','Area','Eccentricity');
 
     % here we sort through features and retain only the "good" ones
     % we assume the good features have area > 2 pixels
-    goodFeatIdx = vertcat(featProp2(:,1).Area)>2;
-%    goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
-%    goodFeatIdx = intersect(goodFeatIdxA,goodFeatIdxI);
+    goodFeatIdxA = vertcat(featProp2(:,1).Area) > 2;
+    goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < 0.8;
+%     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
+    goodFeatIdx = goodFeatIdxA & goodFeatIdxE;
+
 
     % make new label matrix and get props
     featureMap = zeros(imL,imW);
