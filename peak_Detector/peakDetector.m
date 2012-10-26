@@ -136,7 +136,10 @@ if VERBOSE
     progressText(0,'Filtering images for peak detection');
 end
 
-% create kernels for gauss filtering
+% create kernels for gauss filtering 
+% sigma1 = 0.21*lambda/(NA*Pxy). Should be the std of the microscope PSF
+% sigma2 depends on the average size of the the spot. Check supplementary
+% info for these parameteres.
 blurKernelLow  = fspecial('gaussian', 21, 1);
 blurKernelHigh = fspecial('gaussian', 21, 4);
                         
