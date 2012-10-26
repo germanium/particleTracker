@@ -65,7 +65,6 @@ handles.output = hObject;
 handles.PathName = '/DIskC/Data/';  % Default initial directory 
 handles.fr = 1;                         % Starting frame
 addpath('~/Documents/MATLAB/figure_tools/',...
-    '~/Documents/MATLAB/u-track_packages/spotDetector_101410/',...
     '~/Documents/MATLAB/file_tools/')
 
 guidata(hObject, handles);
@@ -96,10 +95,9 @@ guidata(hObject, handles);
 % -------------Load Images-----------------------------
 function load_img_Callback(hObject, ~, handles)
 
-[ImgFileName,ImgPathName] = uigetfile({'*.tif';'*.stk';'*.avi';'*.*'}, 'Select images',...
-    'MultiSelect', 'on');
+[ImgFileName,ImgPathName] = uigetfile({'*.tif';'*.stk';'*.dv';'*.avi';'*.*'}, ...
+    'Select images', 'MultiSelect', 'on');
 cd(ImgPathName) 
-
 
 if ~iscell(ImgFileName)                     % If tif file is a movie
     data = bfopen([ImgPathName,ImgFileName]);
