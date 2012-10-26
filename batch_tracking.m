@@ -1,12 +1,20 @@
 % EL ERROR PARECE VENIR DEL JAVA VM. PUEDO USAR MATLAB SIN JAVA PERO IMSHOW LO NECESITA
 
-function batch_tracking
+function batch_tracking(pathList)
+% batch_tracking([pathList])
+% pathList - Path list to the movies to proccess. Same format as the
+%            uipickfiles() output. If no input it will prompt to select
+%            movies.
 
 % dbstop if error                 % Start debugger if error 
 
 addpath('~/Documents/MATLAB/file_tools/',...
-    genpath('~/Documents/MATLAB/u-track111221_peakDetector'))
+    genpath('~/Documents/MATLAB/u-track_peakDetector'))
 
+PWD = pwd;
+if nargin < 1 || isempty(pathList)  % If didn't provide pathList prompt to select it
+    T_DIR = uipickfiles('Prompt','Select *.dv movies');
+end
 
 %% Detection parameters
 
@@ -135,14 +143,11 @@ saveResults.dir = pwd;                          % save results to current folder
 saveResults.filename = 'TrackingParam.mat';     % name of file where input and output are saved
 saveResults = 0;                                % don't save results
     % Verbose
-verbose = 1;
+VERBOSE = 0;
     % Problem dimension
 probDim = 2;
 
 %% Cycle through folders 
-
-PWD = pwd;                                      % Load Image folders to process
-T_DIR = uipickfiles('Prompt','Select *.dv movies');
 
 tic;
 for i=1:length(T_DIR);                          
@@ -160,10 +165,10 @@ for i=1:length(T_DIR);
     I = {data{1}{:,1}};
     
                                             % Detection     
-    movieInfo = peakDetector(I, bitDepth, 0, []);
+    movieInfo = peakDetector(I, bitDepth, 0, [], VERBOSE);
                                             % Tracking function call
     [tracksFinal,~,~] = trackCloseGapsKalmanSparse(movieInfo,...
-        costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
+        costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,VERBOSE);
     
 % -----------------------Analysis---------------------------------
 
@@ -186,7 +191,7 @@ for i=1:length(T_DIR);
         htracks = figure('Renderer','OpenGL','Visible','off'); % OpenGL por hardware is faster
         imshow(I{1},[])
         plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
-        title(fname)
+        title(fname, 'Interpreter', 'none')
                                             % Save parameters 
         Tr_parameters = {['Maximum gap length: ', num2str(gapCloseParam.timeWindow)];...
             ['Minimum track segment length: ', num2str(gapCloseParam.minTrackLen)]};
@@ -194,7 +199,7 @@ for i=1:length(T_DIR);
                                             % Don't overwrite if exists
         if ~exist('/tracksFinal.mat' ,'file')        
             save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
-            saveASCII(tracksFinal)             % Save tracks to ascii
+%             saveASCII(tracksFinal)             % Save tracks to ascii
             save('D_and_alpha.txt', 'DA', '-ascii')
             save('mean_D_and_A.txt','DAmean', '-ascii')
             
