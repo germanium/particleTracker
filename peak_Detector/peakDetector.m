@@ -131,34 +131,28 @@ strg1 = sprintf('%%.%dd',s1);
 % get difference of Gaussians image for each frame and standard deviation
 % of the cell background, stored in stdList
 stdList = nan(nIm,1);
-count = 1;
-if VERBOSE
-    progressText(0,'Filtering images for peak detection');
-end
 
 % create kernels for gauss filtering 
 % sigma1 = 0.21*lambda/(NA*Pxy). Should be the std of the microscope PSF
 % sigma2 depends on the average size of the the spot. Check supplementary
 % info for these parameteres.
-blurKernelLow  = fspecial('gaussian', 21, 1);
-blurKernelHigh = fspecial('gaussian', 21, 4);
+blurKernelHigh  = fspecial('gaussian', 21, 1);
+blurKernelLow = fspecial('gaussian', 21, 4);
                         
+if VERBOSE
+    progressText(0,'Filtering images for peak detection');
+end
 for iFrame = 1:nIm          % Loop though frames and filter 
-    if VERBOSE
-        progressText(count/nIm,'Filtering images for peak detection');
-    end
-    
-    % load image and normalize to 0-1
-%     fileNameIm = [char(listOfImages(iFrame,2)) filesep char(listOfImages(iFrame,1))];
-%     img = double(imread(fileNameIm))./((2^bitDepth)-1);
-    img = double(I{iFrame})./((2^bitDepth)-1);
+
+    % Normalize to 0-1
+    img = double(I{iFrame})./(2^bitDepth-1);
 
     % use subfunction that calls imfilter to take care of edge effects
-    lowPass = filterRegion(img,roiMask,blurKernelLow);
     highPass = filterRegion(img,roiMask,blurKernelHigh);
+    lowPass = filterRegion(img,roiMask,blurKernelLow);
 
     % get difference of gaussians image
-    filterDiff = lowPass-highPass;
+    filterDiff = highPass - lowPass;
 
     % if bg point was chosen and saved, get bgMask from first frame
     if iFrame==1 && exist([outDir '/bgPtYX.mat'],'file')~=0
@@ -178,24 +172,16 @@ for iFrame = 1:nIm          % Loop though frames and filter
     indxStr1 = sprintf(strg1,iFrame);
     save([featDir filesep 'filterDiff' filesep 'filterDiff' indxStr1],'filterDiff')
     save([featDir filesep 'stdList'],'stdList')
-    
-    count = count+1;
+
+    if VERBOSE
+        progressText(iFrame/nIm,'Filtering images for peak detection');
+    end
 end
 
-
-
-count = 1;
 if VERBOSE
     progressText(0,'Detecting peaks');
 end
-
 for iFrame = 1:nIm                          % loop thru frames and detect
-    if VERBOSE
-        progressText(count/nIm,'Detecting peaks');
-    end
-    if iFrame==1
-        tic
-    end
 
     indxStr1 = sprintf(strg1,iFrame);
     filterDiff = load([featDir '/filterDiff/filterDiff' indxStr1]);
@@ -259,7 +245,8 @@ for iFrame = 1:nIm                          % loop thru frames and detect
     featProp2 = regionprops(featMap2,'PixelIdxList','Area','Eccentricity');
 
     % here we sort through features and retain only the "good" ones
-    % we assume the good features have area > 2 pixels
+    % we assume the good features have area > 2 pixels, and are circular
+    % hence eccentricity > 0.8
     goodFeatIdxA = vertcat(featProp2(:,1).Area) > 2;
     goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < 0.8;
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
@@ -323,9 +310,12 @@ for iFrame = 1:nIm                          % loop thru frames and detect
         saveas(gcf,[featDir '/overlayImages/overlay' indxStr1 '.fig']);
         close(gcf)
     end
-
-    count=count+1;
+    
+    if VERBOSE
+        progressText(iFrame/nIm,'Detecting peaks');
+    end
 end
+
 save([featDir '/movieInfo'],'movieInfo');
 
 rmdir([featDir '/filterDiff'],'s');
