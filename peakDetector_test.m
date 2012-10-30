@@ -1,23 +1,24 @@
 
-I = imread('/DIskC/Data/HIV_movies/detection_test_set/sas032211beads-F.03_R3D-1.tif');
-
-figure, imshow(imadjust(I))
+img_16bit = imread('/DIskC/Data/HIV_movies/detection_test_set/sas032211beads-F.03_R3D-1.tif');
+img_double = double(I)./((2^16)-1);                % Convert to double in the range 0-1
+img_adj = imadjust(img);
+figure, imshow(img_adj,[])
 
 %%
 peakDetector({I}, 16, 0, [])
 
-%%
-img = double(I)./((2^16)-1);
+%% DoG 
+
 % sigma1 = 0.21*676/(1.4*322)
 % sigma2 = sqrt(2)*5/2 
-sigma1 = 1.5;
+sigma1 = 1;
 sigma2 = 4;
 blurKernelHigh  = fspecial('gaussian', 21, sigma1);
 blurKernelLow = fspecial('gaussian', 21, sigma2);
 
 % use subfunction that calls imfilter to take care of edge effects
-lowPass = imfilter(img,blurKernelLow);
-highPass = imfilter(img,blurKernelHigh);
+lowPass = imfilter(img_16bit,blurKernelLow);
+highPass = imfilter(img_16bit,blurKernelHigh);
 
 % get difference of gaussians image
 filterDiff = highPass - lowPass;
@@ -27,9 +28,9 @@ figure,imshow(imadjust(filterDiff))
 e = edge(filterDiff, 'canny');
 figure, imshow(e);
 %%
-radii = 1:0.5:5;
-h = circle_hough(e, radii, 'same', 'normalise');
-stackSlider(h), axis ij
+radii = 1:0.5:20;
+h = circle_hough(e, radii, 'same','normalise');
+stackSlider(h), axis image
 
 %% Find some peaks in the accumulator
 % We use the neighbourhood-suppression method of peak finding to ensure
@@ -51,3 +52,18 @@ for peak = peaks
 end
 hold off
 
+%% CircularHough_Grd() test
+rawimg = filterDiff;
+tic;
+[accum, circen, cirrad] = CircularHough_Grd(rawimg, [1 10], 0.05);
+toc;
+
+figure; imagesc(accum); axis image;
+title('Accumulation Array from Circular Hough Transform');
+
+figure; imagesc(img_adj); colormap('gray'); axis image;
+hold on;
+plot(circen(:,1), circen(:,2), 'r+');
+for k = 1 : size(circen, 1),
+    DrawCircle(circen(k,1), circen(k,2), cirrad(k), 32, 'b-');
+end
