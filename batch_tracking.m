@@ -6,7 +6,7 @@ function batch_tracking(pathList)
 %            uipickfiles() output. If no input it will prompt to select
 %            movies.
 
-% dbstop if error                 % Start debugger if error 
+% dbstop if error                   % Start debugger if error 
 
 addpath('~/Documents/MATLAB/file_tools/',...
     genpath('~/Documents/MATLAB/u-track_peakDetector'))
@@ -19,6 +19,9 @@ end
 %% Detection parameters
 
 bitDepth = 16;
+pxSize = 0.322;                         % In um/px
+DT = 0.15;                              % In seconds
+dtMaxFr = round(1.5/DT);                % 1.5 seconds to frames
 
 %% Tracking parameters
 
@@ -150,8 +153,9 @@ probDim = 2;
 %% Cycle through folders 
 
 tic;
-for i=1:length(T_DIR);                          
-    clear movieInfo tracksFinal
+parfor i=1:length(T_DIR);
+    
+    movieInfo=[];  tracksFinal=[];
 %     clear java
     
     [pathstr, fname] = fileparts(T_DIR{i});
@@ -171,10 +175,6 @@ for i=1:length(T_DIR);
         costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,VERBOSE);
     
 % -----------------------Analysis---------------------------------
-
-    pxSize = 0.322;                         % In um/px
-    DT = 0.15;                              % In seconds
-    dtMaxFr = round(1.5/DT);                % 1.5 seconds to frames
     
     T = tracks2cell(tracksFinal);       
     T_msd = msdMaxDt(T,DT,dtMaxFr,pxSize);
@@ -198,10 +198,10 @@ for i=1:length(T_DIR);
         im = I{1};
                                             % Don't overwrite if exists
         if ~exist('/tracksFinal.mat' ,'file')        
-            save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
+            parsave('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
 %             saveASCII(tracksFinal)             % Save tracks to ascii
-            save('D_and_alpha.txt', 'DA', '-ascii')
-            save('mean_D_and_A.txt','DAmean', '-ascii')
+            parsave('D_and_alpha.txt', DA, '-ascii')
+            parsave('mean_D_and_A.txt',DAmean, '-ascii')
             
             print(htracks,'-dpng','Trajectories.png');
             close(htracks)
