@@ -1,7 +1,7 @@
 
-img_16bit = imread('/DIskC/Data/HIV_movies/detection_test_set/sas032211beads-F.03_R3D-1.tif');
+I = imread('/DIskC/Data/HIV_movies/detection_test_set/sas032211beads-F.03_R3D-1.tif');
 img_double = double(I)./((2^16)-1);                % Convert to double in the range 0-1
-img_adj = imadjust(img);
+img_adj = imadjust(img_double);
 figure, imshow(img_adj,[])
 
 %%
@@ -15,10 +15,14 @@ sigma1 = 1;
 sigma2 = 4;
 blurKernelHigh  = fspecial('gaussian', 21, sigma1);
 blurKernelLow = fspecial('gaussian', 21, sigma2);
+mask = ones(size(img_double));
 
-% use subfunction that calls imfilter to take care of edge effects
-lowPass = imfilter(img_16bit,blurKernelLow);
-highPass = imfilter(img_16bit,blurKernelHigh);
+lowPass = imfilter(img_double,blurKernelLow);
+W = imfilter(mask, blurKernelLow);
+lowPass = lowPass ./ W;                     % Take care of edge effects
+highPass = imfilter(img_double,blurKernelHigh);
+W = imfilter(mask, blurKernelHigh);
+highPass = highPass ./ W;
 
 % get difference of gaussians image
 filterDiff = highPass - lowPass;

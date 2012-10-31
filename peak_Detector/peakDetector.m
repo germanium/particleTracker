@@ -1,5 +1,5 @@
-function [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir, VERBOSE)
-% [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir, VERBOSE)
+function [movieInfo] = peakDetector(I,bitDepth,outDir, VERBOSE)
+% [movieInfo] = peakDetector(I,bitDepth,outDir, VERBOSE)
 %
 %
 %INPUT  I                 : Image stack, cell array with one frame per array
@@ -19,75 +19,28 @@ function [movieInfo] = peakDetector(I,bitDepth,savePlots,outDir, VERBOSE)
 %                           provided). both the ROI and bg (cell) point 
 %                           are saved during setupRoiDirectories.m
 
-warningState = warning;
-% warning('off','MATLAB:divideByZero')
-
-% CHECK INPUT AND SET UP DIRECTORIES
-
-% get projData in correct format
-% if nargin<1 || isempty(projData)
-%     % if not given as input, ask user for ROI directory
-%     % assume images directory is at same level
-%     projData.imDir = uigetdir('~/Documents/Data','Please select image directory');
-% 
-% end
-
-% count number of images in image directory
-% [listOfImages] = searchFiles('.tif', [], projData.imDir, 0);
-% nImTot = size(listOfImages,1);
-nIm = length(I);
-
-% check timeRange input, assign start and end frame
-% if nargin<2 || isempty(timeRange)
-%     startFrame = 1;
-%     endFrame = nIm;
-% elseif isequal(unique(size(timeRange)),[1 2])
-%     if timeRange(1)<=timeRange(2) && timeRange(2)<=nIm
-%         startFrame = timeRange(1);
-%         endFrame = timeRange(2);
-%     else
-%         startFrame = 1;
-%         endFrame = nIm;
-%     end
-% 
-% else
-%     error('--plusTipCometDetector: timeRange should be [startFrame endFrame] or [] for all frames')
-% end
-% nFrames = endFrame-startFrame+1;
-
-% get image dimensions, max intensity from first image
-% fileNameIm = [char(listOfImages(1,2)) filesep char(listOfImages(1,1))];
-% img = double(imread(fileNameIm));
-[imL,imW] = size(I{1});
-maxIntensity = max(I{1}(:));
 
 % get bit depth if not given
 if nargin < 2 || isempty(bitDepth)
-    fileNameIm = uigetfile('*.tif','Please select an image to estimate bit depth',...
-        '~/Documents/Data');
-    imgData = imfinfo(fileNameIm);
-    bitDepth = imgData.BitDepth;
-    disp(['bitDepth estimated to be' bitDepth])
+    bitDepth = 16;
 end
+
+if nargin<3 || isempty(outDir)      % If ouDir wasn't inputed then use pwd
+    outDir = pwd;
+end
+
+if nargin<4 
+    VERBOSE = true;
+end
+
+Nfr = length(I);
+[Nr,Nc] = size(I{1});
+maxIntensity = max(I{1}(:));
 
 % check bit depth to make sure it is 12, 14, or 16 and that its dynamic
 % range is not greater than the provided bitDepth
 if sum(bitDepth==[8 12 14 16])~=1 || maxIntensity > 2^bitDepth-1
-    error('--plusTipCometDetector: bit depth should be 12, 14, or 16');
-end
-
-% check input for savePlots
-if nargin<3 || isempty(savePlots)
-    savePlots = 1;
-end
-
-% If ouDir wasn't inputed then use pwd
-if nargin<4 || isempty(outDir)
-    outDir = pwd;
-end
-
-if nargin<5 
-    VERBOSE = true;
+    error('--peakDetector: bit depth should be 12, 14, or 16');
 end
 
 % make feat directory if it doesn't exist from batch
@@ -97,107 +50,83 @@ if isdir(featDir)
 end
 mkdir(featDir)
 mkdir([featDir '/filterDiff']);    
-if savePlots==1
-    mkdir([featDir '/overlayImages']);
-end
-
-
-% look for region of interest info from project setup step
-if ~exist([outDir '/roiMask.tif'],'file')
-    % not roi selected; use the whole image
-    roiMask = true(imL,imW);
-    roiYX = [1 1; imL 1; imL imW; 1 imW; 1 1];
-else
-    % get roi edge pixels and make region outside mask NaN
-    roiMask = double(imread([outDir '/roiMask.tif']));
-    roiYX = load([outDir '/roiYX']);
-    roiYX = roiYX.roiYX;
-end
-
 
 % string for number of files
-s1 = length(num2str(nIm));
+s1 = length(num2str(Nfr));
 strg1 = sprintf('%%.%dd',s1);
 
 
 % START DETECTION
 
 % initialize structure to store info for tracking
-[movieInfo(1:nIm,1).xCoord] = deal([]);
-[movieInfo(1:nIm,1).yCoord] = deal([]);
-[movieInfo(1:nIm,1).amp] = deal([]);
-[movieInfo(1:nIm,1).int] = deal([]);
+[movieInfo(1:Nfr,1).xCoord] = deal([]);
+[movieInfo(1:Nfr,1).yCoord] = deal([]);
+[movieInfo(1:Nfr,1).amp] = deal([]);
+[movieInfo(1:Nfr,1).int] = deal([]);
 
 % get difference of Gaussians image for each frame and standard deviation
 % of the cell background, stored in stdList
-stdList = nan(nIm,1);
+stdList = nan(Nfr,1);
 
 % create kernels for gauss filtering 
 % sigma1 = 0.21*lambda/(NA*Pxy). Should be the std of the microscope PSF
 % sigma2 depends on the average size of the the spot. Check supplementary
 % info for these parameteres.
-blurKernelHigh  = fspecial('gaussian', 21, 1);
+
 blurKernelLow = fspecial('gaussian', 21, 4);
-                        
+blurKernelHigh  = fspecial('gaussian', 21, 1);
+mask = ones(size(I{1}));
+lowPassMask = imfilter(mask, blurKernelLow);
+highPassMask = imfilter(mask, blurKernelHigh);
+
 if VERBOSE
     progressText(0,'Filtering images for peak detection');
 end
-for iFrame = 1:nIm          % Loop though frames and filter 
+for i = 1:Nfr                   % Loop though frames and filter 
 
-    % Normalize to 0-1
-    img = double(I{iFrame})./(2^bitDepth-1);
+    img = double(I{i})./(2^bitDepth-1);     % Normalize to 0-1
 
-    % use subfunction that calls imfilter to take care of edge effects
-    highPass = filterRegion(img,roiMask,blurKernelHigh);
-    lowPass = filterRegion(img,roiMask,blurKernelLow);
+    
+    lowPass = imfilter(img, blurKernelLow) ./ lowPassMask;      % Gets rido of 
+    highPass = imfilter(img, blurKernelHigh) ./ highPassMask;   %  edge effects
 
     % get difference of gaussians image
     filterDiff = highPass - lowPass;
 
-    % if bg point was chosen and saved, get bgMask from first frame
-    if iFrame==1 && exist([outDir '/bgPtYX.mat'],'file')~=0
-        bgPtYX = load([outDir '/bgPtYX.mat']);
-        bgPtYX = bgPtYX.bgPtYX;
-        [bgMask] = eb3BgMask(filterDiff,bgPtYX); % Make mask
-        saveas(gcf,[featDir filesep 'filterDiff' filesep 'bgMask.tif']);
-        close(gcf)
-    end
-    % if bg point wasn't chosen, use ROI
-    if iFrame==1 && exist([outDir '/bgPtYX.mat'],'file')==0
-        bgMask = logical(roiMask);
-    end
-
-    stdList(iFrame) = std(filterDiff(bgMask));      % STD of the cell area controls the 
-                                                    % thresh step size
-    indxStr1 = sprintf(strg1,iFrame);
+    stdList(i) = std(filterDiff(:));       % STD of the cell area controls the 
+                                                % thresh step size
+    indxStr1 = sprintf(strg1,i);
     save([featDir filesep 'filterDiff' filesep 'filterDiff' indxStr1],'filterDiff')
-    save([featDir filesep 'stdList'],'stdList')
 
     if VERBOSE
-        progressText(iFrame/nIm,'Filtering images for peak detection');
+        progressText(i/Nfr,'Filtering images for peak detection');
     end
 end
 
 if VERBOSE
     progressText(0,'Detecting peaks');
 end
-for iFrame = 1:nIm                          % loop thru frames and detect
+for i = 1:Nfr                          % loop thru frames and detect
 
-    indxStr1 = sprintf(strg1,iFrame);
+    indxStr1 = sprintf(strg1,i);
     filterDiff = load([featDir '/filterDiff/filterDiff' indxStr1]);
     filterDiff = filterDiff.filterDiff;
 
     % thickness of intensity slices is average std from filterDiffs over
-    % from one frame before to one frame after
-    if iFrame==1
-        sF = iFrame;
+    % from one frame before to one frame after. In their technical report
+    % they say they average the std over i-2 <= i <= i+2. If I didn't use
+    % averaging I could stop writing fiterDiff to disk and run the whole
+    % analysis for every frame. 
+    
+    if i==1
+        sF = i;
     else
-        sF = iFrame-1;
+        sF = i-1;
     end
-    if iFrame==nIm
-        eF = iFrame;
+    if i==Nfr
+        eF = i;
     else
-        eF = iFrame+1;
+        eF = i+1;
     end
     stepSize = mean(stdList(sF:eF));        % stdList is the std on the (estimated) cell
     thresh = 3*stepSize;                    %  area.
@@ -254,7 +183,7 @@ for iFrame = 1:nIm                          % loop thru frames and detect
 
 
     % make new label matrix and get props
-    featureMap = zeros(imL,imW);
+    featureMap = zeros(Nr,Nc);
     featureMap(vertcat(featProp2(goodFeatIdx,1).PixelIdxList)) = 1;
     [featMapFinal,nFeats] = bwlabel(featureMap);
     
@@ -287,91 +216,20 @@ for iFrame = 1:nIm                          % loop thru frames and detect
     end
 
     % make structure compatible with Khuloud's tracker
-    movieInfo(iFrame,1).xCoord = xCoord;
-    movieInfo(iFrame,1).yCoord = yCoord;
-    movieInfo(iFrame,1).amp = amp;          % amp should be intensity not area!
-    movieInfo(iFrame,1).int = featI;
+    movieInfo(i,1).xCoord = xCoord;
+    movieInfo(i,1).yCoord = yCoord;
+    movieInfo(i,1).amp = amp;          % amp should be intensity not area!
+    movieInfo(i,1).int = featI;
 
 
-    indxStr1 = sprintf(strg1,iFrame); % frame
-
-    %plot feat outlines and centroid on image
-    if savePlots==1
-        img = double(I{iFrame})./((2^bitDepth)-1);
-
-        figure
-        imagesc(img);
-        hold on
-        scatter(xCoord(:,1),yCoord(:,1),'c.'); % plot centroid in cyan
-        colormap gray
-        plot(roiYX(2),roiYX(1),'w')
-        axis equal
-        saveas(gcf,[featDir '/overlayImages/overlay' indxStr1 '.tif']);
-        saveas(gcf,[featDir '/overlayImages/overlay' indxStr1 '.fig']);
-        close(gcf)
-    end
+    indxStr1 = sprintf(strg1,i); % frame
     
     if VERBOSE
-        progressText(iFrame/nIm,'Detecting peaks');
+        progressText(i/Nfr,'Detecting peaks');
     end
 end
 
 save([featDir '/movieInfo'],'movieInfo');
 
 rmdir([featDir '/filterDiff'],'s');
-
-warning(warningState);
-
-
-
-function filteredIm = filterRegion(im, mask, kernel)
-% Filtered image nomalized by filtered mask...
-
-im(mask~=1) = 0;                    
-filteredIm = imfilter(im, kernel);
-W = imfilter(double(mask), kernel);
-filteredIm = filteredIm ./ W;
-filteredIm(~mask) = nan;
-
-
-function [bgMask] = eb3BgMask(filterDiff,bgPtYX)
-% Finds a mask for the cell based on the peaks percentile and the distance to bgPtXY
-
-% local max detection
-fImg = locmax2d(filterDiff,[20 20],1);
-
-% get indices of local maxima
-idx = find(fImg);
-[r, c] = find(fImg);
-
-% calculate percentiles of max intensities to use for rough idea of cell
-% region
-p1 = prctile(fImg(idx),80);
-p2 = prctile(fImg(idx),90);
-
-% get indices of those maxima within the percentile range ("good" features)
-goodIdx = find(fImg(idx)>p1 & fImg(idx)<p2);
-
-% get indices for nearest fifty points to user-selected point.
-D = createDistanceMatrix([bgPtYX(1) bgPtYX(2)],[r(goodIdx) c(goodIdx)]);
-[~,closeIdx] = sort(D);
-closeIdx = closeIdx(1:min(50,length(closeIdx)));    
-% Gets the closest 50 points from the point selected inside the cell. They are in between 
-% the percentile 80 and 90 of all the maximas brightness 
-
-% get convex hull and create ROI from that
-K = convhull(c(goodIdx(closeIdx)),r(goodIdx(closeIdx)));
-[bgMask,xi,yi] = roipoly(fImg,c(goodIdx(closeIdx(K))),r(goodIdx(closeIdx(K))));
-
-
-figure 
-imagesc(filterDiff); 
-colormap gray;
-axis equal
-hold on
-scatter(bgPtYX(2),bgPtYX(1),'*y')           % user-selected point
-scatter(c(goodIdx),r(goodIdx),'.g')         % all "good" features in green
-scatter(c(goodIdx(closeIdx)),r(goodIdx(closeIdx)),'r') % nearest fifty to point in red
-plot(xi,yi)                                 % plot mask outline in blue
-
 
