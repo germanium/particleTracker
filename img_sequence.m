@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 12-Jul-2012 14:55:39
+% Last Modified by GUIDE v2.5 01-Nov-2012 11:39:54
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -100,24 +100,24 @@ function load_img_Callback(hObject, ~, handles)
 cd(ImgPathName) 
 
 if ~iscell(ImgFileName)                     % If tif file is a movie
-    data = bfopen([ImgPathName,ImgFileName]);
+    data = bfopen([ImgPathName ImgFileName]);
     data = data{1};
-    Nf = size(data,1);                      % # of frames                                            
-    I = cell(1,Nf);
-    Idisp = cell(Nf,1);
+    Nfr = size(data,1);                     % # of frames                                            
+    I = cell(1,Nfr);
+    Idisp = cell(Nfr,1);
     
-    for i=1:Nf
+    for i=1:Nfr
         I{i} = data{i,1};   
         Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
     end
     
-    handles.FileName = ImgFileName(1:(end-4)); 
+    [~, handles.FileName] = fileparts(ImgFileName); 
     
 else                                        % If each tif is a frame
-    Nf = length(ImgFileName);               % # of frames
-    I = cell(Nf,1);
-    Idisp = cell(Nf,1);
-    for i=1:Nf
+    Nfr = length(ImgFileName);              % # of frames
+    I = cell(Nfr,1);
+    Idisp = cell(Nfr,1);
+    for i=1:Nfr
         I{i} = imread([ImgPathName,ImgFileName{i}]);
         Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
     end
@@ -135,10 +135,10 @@ htext = findall(0,'Tag','text1');          % Display frame #
 set(htext,'String','Frame # 1');
 
 slider = findall(0,'Tag','slider1');
-set(slider, 'Max', Nf,'Min', 1, 'Value', 1, 'SliderStep', [1/Nf 5/Nf]);
+set(slider, 'Max', Nfr,'Min', 1, 'Value', 1, 'SliderStep', [1/Nfr 5/Nfr]);
 
 handles.PathName = ImgPathName;
-handles.Nf = Nf;
+handles.Nf = Nfr;
 handles.I = I;
 handles.Idisp = Idisp;
 
@@ -150,7 +150,7 @@ guidata(hObject, handles);
 
 
 % Load all tifs in folder
-function Load_all_Callback(hObject, eventdata, handles)
+function Load_all_Callback(hObject, ~, handles)
 FILES = dir('*.tif'); 
 Nf = length(FILES);                         % Nuber of frames
 
@@ -184,13 +184,14 @@ guidata(hObject, handles);
 
 
 % --- Executes on button press in apply_detection.
-function apply_detection_Callback(hObject, eventdata, handles)
+function apply_detection_Callback(hObject, ~, handles)
 Nf = length(handles.I);
 
-bitDepth = str2double(get(handles.edit_bitDepth, 'String'));            
-ROIcheck = findall(0,'Tag','ROIcheck');      % Select Region Of Interest
+bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
+area = str2double(get(handles.edit_area, 'String'));
+ecce = str2double(get(handles.edit_ecce, 'String'));
 
-if (get(ROIcheck,'Value'))
+if (get(handles.ROIcheck,'Value'))
     ROI_dialog();
     handles.BW = roipoly();
     for i=1:Nf
@@ -199,10 +200,8 @@ if (get(ROIcheck,'Value'))
     imshow(handles.Idisp{1});
 end
 
-detectionH = findall(0,'Tag','detection_popup');
-
-if get(detectionH,'Value') == 1             % Use DoG      
-    movieInfo = peakDetector(handles.I, bitDepth, 0, []);
+if get(handles.detection_popup,'Value') == 1             % Use DoG      
+    movieInfo = peakDetector(handles.I, bitDepth, area, ecce, true);
     
 else                                        % Use multiscale products
     % initialize structure to store info for tracking
@@ -234,17 +233,35 @@ handles.movieInfo = movieInfo;
 guidata(hObject, handles);
 
 
+% --- Executes on button press in AnalyzeFrame.
+function AnalyzeFrame_Callback(~, ~, handles)
+
+fr = handles.fr; 
+bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
+area = str2double(get(handles.edit_area, 'String'));
+ecce = str2double(get(handles.edit_ecce, 'String'));
+
+movieInfo = peakDetector(handles.I(fr), bitDepth, area, ecce, true);
+
+imshow(handles.Idisp{fr});
+hold on
+for i=1:size(movieInfo.xCoord,1)
+    R = sqrt(movieInfo.amp(i,1)/pi);        % Calculate R from area
+    circle([movieInfo.xCoord(i,1), ...
+            movieInfo.yCoord(i,1)], R, 30 , 'g');
+end
+hold off
 
 % --- Executes on button press in apply_track.
-function apply_track_Callback(hObject, eventdata, handles)
+function apply_track_Callback(hObject, ~, handles)
 
-%% Cost functions
+% Cost functions
     % Frame-to-frame linking
 costMatrices(1).funcName = 'costMatRandomDirectedSwitchingMotionLink';
     % Gap closing, merging and splitting
 costMatrices(2).funcName = 'costMatRandomDirectedSwitchingMotionCloseGaps';
 
-%% Kalman filter functions
+% Kalman filter functions
     % Memory reservation
 kalmanFunctions.reserveMem = 'kalmanResMemLM';
     % Filter initialization
@@ -254,7 +271,7 @@ kalmanFunctions.calcGain = 'kalmanGainLinearMotion';
     %Time reversal for second and third rounds of linking
 kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
-%% General tracking parameters
+% General tracking parameters
 
     % Gap closing time window. Depends on SNR and fluorophore blinking. Critical
     %  if too small or too large. Robust in proper range (default 10 frames)
@@ -272,7 +289,7 @@ gapCloseParam.minTrackLen = str2num(get(findall(0,'Tag','edit7'), 'String'));
     %  the end of tracking, 0 or empty otherwise
 gapCloseParam.diagnostics = 1;
 
-%% Cost function specific parameters: Frame-to-frame linking
+% Cost function specific parameters: Frame-to-frame linking
 % Flag for motion model, 0 for only random motion;
 %                        1 for random + directed motion;
 %                        2 for random + directed motion with the
@@ -304,7 +321,7 @@ parameters.diagnostics = [];
 costMatrices(1).parameters = parameters;
 clear parameters
 
-%% Cost function specific parameters: Gap closing, merging and splitting
+% Cost function specific parameters: Gap closing, merging and splitting
     % Same parameters as for the frame-to-frame linking cost function
 parameters.linearMotion = costMatrices(1).parameters.linearMotion;
 parameters.useLocalDensity = costMatrices(1).parameters.useLocalDensity;
@@ -352,7 +369,7 @@ parameters.resLimit = 3.4;
 costMatrices(2).parameters = parameters;
 clear parameters
 
-%% Additional input
+% Additional input
 saveResults.dir = cd;                           % save results to current folder 
 saveResults.filename = 'TrackingParam.mat';     % name of file where input and output are saved
 % saveResults = 0;                              % don't save results
@@ -361,11 +378,11 @@ verbose = 1;
     % Problem dimension
 probDim = 2;
 
-%% tracking function call
+% tracking function call
 [tracksFinal,~,~] = trackCloseGapsKalmanSparse(handles.movieInfo,...
     costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
 
-%% Plot trajectories 
+% Plot trajectories 
     % Plot split as a white dash-dotted line
     % Plot merge as a white dashed line
     % Place circles at track starts and squares at track ends
@@ -382,7 +399,7 @@ else
     title({handles.PathName,handles.FileName},'Interpreter','none')
 end
 
-%% Save results
+% Save results
 handles.Tr_parameters{1} = ['Maximum gap length: ', num2str(gapCloseParam.timeWindow)];
 handles.Tr_parameters{2} = ['Minimum track segment length: ', num2str(gapCloseParam.minTrackLen)];
 
@@ -394,7 +411,7 @@ assignin('base','Tr_parameters', handles.Tr_parameters)
 Tr_parameters = handles.Tr_parameters;                  % for saving 
 im = handles.I{1};
 
-if ~exist([saveResults.dir,'/tracksFinal.mat'] ,'file')     % Don't overwrite if exists
+if ~exist([saveResults.dir,'/tracksFinal.mat'] ,'file') % Don't overwrite if exists
     save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
     print(gcf,'-dpng ','Trajectories.png');
 else                                                    % If file exists in the folder 
@@ -430,24 +447,31 @@ for i=1:n
 end
 
 
-% --- Executes on button press in AnalyzeFrame.
-function AnalyzeFrame_Callback(~, ~, handles)
+% --- Executes on selection change in detection_popup.
+function detection_popup_Callback(hObject, eventdata, handles)
+% hObject    handle to detection_popup (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
 
-fr = handles.fr; 
-bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
+% Hints: contents = cellstr(get(hObject,'String')) returns detection_popup contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from detection_popup
 
-movieInfo = peakDetector(handles.I(fr), bitDepth, 0, []);
+method = get(hObject,'Value');
+if method == 1
+    set(handles.text_area, 'Visible', 'on')
+    set(handles.text_ecce, 'Visible', 'on')
+    set(handles.edit_area, 'Visible', 'on')
+    set(handles.edit_ecce, 'Visible', 'on')
 
-hold on
-for i=1:size(movieInfo.xCoord,1)
-    R = sqrt(movieInfo.amp(i,1)/pi);        % Calculate R from area
-    circle([movieInfo.xCoord(i,1), ...
-            movieInfo.yCoord(i,1)], R, 30 , 'g');
+elseif method ==2
+    set(handles.text_area, 'Visible', 'off')
+    set(handles.text_ecce, 'Visible', 'off')
+    set(handles.edit_area, 'Visible', 'off')
+    set(handles.edit_ecce, 'Visible', 'off')
 end
-hold off
 
 
-%% UI functions ------------------------------------------------------------
+%% Unused UI functions ------------------------------------------------------------
 
 function edit8_Callback(~, ~, ~)
 
@@ -614,16 +638,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on selection change in detection_popup.
-function detection_popup_Callback(hObject, eventdata, handles)
-% hObject    handle to detection_popup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns detection_popup contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from detection_popup
-
-
 % --- Executes during object creation, after setting all properties.
 function detection_popup_CreateFcn(hObject, eventdata, handles)
 % hObject    handle to detection_popup (see GCBO)
@@ -631,6 +645,52 @@ function detection_popup_CreateFcn(hObject, eventdata, handles)
 % handles    empty - handles not created until after all CreateFcns called
 
 % Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit_area_Callback(hObject, eventdata, handles)
+% hObject    handle to edit_area (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit_area as text
+%        str2double(get(hObject,'String')) returns contents of edit_area as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_area_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit_area (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit_ecce_Callback(hObject, eventdata, handles)
+% hObject    handle to edit_ecce (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit_ecce as text
+%        str2double(get(hObject,'String')) returns contents of edit_ecce as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_ecce_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit_ecce (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
