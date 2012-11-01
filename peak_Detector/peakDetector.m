@@ -1,12 +1,11 @@
-function [movieInfo] = peakDetector(I,bitDepth,outDir, VERBOSE)
-% [movieInfo] = peakDetector(I,bitDepth,outDir, VERBOSE)
+function movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
+% movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
 %
 %
 %INPUT  I                 : Image stack, cell array with one frame per array
-%       bitDepth          : bit depth of the images - should be 12, 14, or 16
-%       savePlots         : 1 to save overlay plots of detection results, 
-%                           0 if not. Default true
-%       outDir            : Output directory. Default pwd
+%       bitDepth          : Bit depth of the images - should be 12, 14, or 16
+%       area              : Minimum area of the spots to accept. Default 2
+%       ecce              : Minimum eccentricity of the spots to accept. Default 0.8
 %       VERBOSE           : Verbose option. Default true
 %
 %OUTPUT movieInfo         : nFrames-structure containing x/y coordinates
@@ -25,11 +24,15 @@ if nargin < 2 || isempty(bitDepth)
     bitDepth = 16;
 end
 
-if nargin<3 || isempty(outDir)      % If ouDir wasn't inputed then use pwd
-    outDir = pwd;
+if nargin < 3 || isempty(area)
+    area = 2;
 end
 
-if nargin<4 
+if nargin < 4 || isempty(ecce)
+    ecce = 0.8;
+end
+
+if nargin < 5 
     VERBOSE = true;
 end
 
@@ -131,8 +134,8 @@ for i = 1:Nfr                   % Loop though frames and filter
     % here we sort through features and retain only the "good" ones
     % we assume the good features have area > 2 pixels, and are circular
     % hence eccentricity > 0.8
-    goodFeatIdxA = vertcat(featProp2(:,1).Area) > 2;
-    goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < 0.8;
+    goodFeatIdxA = vertcat(featProp2(:,1).Area) > area;
+    goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < ecce;
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
     goodFeatIdx = goodFeatIdxA & goodFeatIdxE;
 
