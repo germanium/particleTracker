@@ -57,7 +57,8 @@ parfor i=1:length(pathList);
     I = {data{1}{:,1}};
     
                                             % Detection     
-    movieInfo = peakDetector(I, detParam.bitDepth, [], VERBOSE);
+    movieInfo = peakDetector(I, detParam.bitDepth, detParam.area,...
+        detParam.ecce, VERBOSE);
                                             % Tracking function call
     tracksFinal = trackCloseGapsKalmanSparse(movieInfo,...
         trackParam.costMatrices, trackParam.gapCloseParam,...
