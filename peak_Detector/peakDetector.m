@@ -43,19 +43,6 @@ if sum(bitDepth==[8 12 14 16])~=1 || maxIntensity > 2^bitDepth-1
     error('--peakDetector: bit depth should be 12, 14, or 16');
 end
 
-% make feat directory if it doesn't exist from batch
-featDir = [outDir '/feat'];
-if isdir(featDir)
-    rmdir(featDir,'s')
-end
-mkdir(featDir)
-mkdir([featDir '/filterDiff']);    
-
-% string for number of files
-s1 = length(num2str(Nfr));
-strg1 = sprintf('%%.%dd',s1);
-
-
 % START DETECTION
 
 % initialize structure to store info for tracking
@@ -63,10 +50,6 @@ strg1 = sprintf('%%.%dd',s1);
 [movieInfo(1:Nfr,1).yCoord] = deal([]);
 [movieInfo(1:Nfr,1).amp] = deal([]);
 [movieInfo(1:Nfr,1).int] = deal([]);
-
-% get difference of Gaussians image for each frame and standard deviation
-% of the cell background, stored in stdList
-stdList = nan(Nfr,1);
 
 % create kernels for gauss filtering 
 % sigma1 = 0.21*lambda/(NA*Pxy). Should be the std of the microscope PSF
@@ -80,7 +63,7 @@ lowPassMask = imfilter(mask, blurKernelLow);
 highPassMask = imfilter(mask, blurKernelHigh);
 
 if VERBOSE
-    progressText(0,'Filtering images for peak detection');
+    progressText(0,'Detecting Peaks');
 end
 for i = 1:Nfr                   % Loop though frames and filter 
 
@@ -93,49 +76,21 @@ for i = 1:Nfr                   % Loop though frames and filter
     % get difference of gaussians image
     filterDiff = highPass - lowPass;
 
-    stdList(i) = std(filterDiff(:));       % STD of the cell area controls the 
-                                                % thresh step size
-    indxStr1 = sprintf(strg1,i);
-    save([featDir filesep 'filterDiff' filesep 'filterDiff' indxStr1],'filterDiff')
-
-    if VERBOSE
-        progressText(i/Nfr,'Filtering images for peak detection');
-    end
-end
-
-if VERBOSE
-    progressText(0,'Detecting peaks');
-end
-for i = 1:Nfr                          % loop thru frames and detect
-
-    indxStr1 = sprintf(strg1,i);
-    filterDiff = load([featDir '/filterDiff/filterDiff' indxStr1]);
-    filterDiff = filterDiff.filterDiff;
-
+    stdFr = std(filterDiff(:));       % STD of the cell area controls the 
+                                      % thresh step size
     % thickness of intensity slices is average std from filterDiffs over
     % from one frame before to one frame after. In their technical report
     % they say they average the std over i-2 <= i <= i+2. If I didn't use
     % averaging I could stop writing fiterDiff to disk and run the whole
     % analysis for every frame. 
     
-    if i==1
-        sF = i;
-    else
-        sF = i-1;
-    end
-    if i==Nfr
-        eF = i;
-    else
-        eF = i+1;
-    end
-    stepSize = mean(stdList(sF:eF));        % stdList is the std on the (estimated) cell
-    thresh = 3*stepSize;                    %  area.
+    thresh = 3*stdFr;                    
     
     % we assume each step size down the intensity profile should be on
     % the order of the size of the background std; here we find how many
     % steps we need and what their spacing should be. we also assume peaks
     % should be taller than 3*std
-    nSteps = round((nanmax(filterDiff(:))-thresh)/stepSize);
+    nSteps = round((nanmax(filterDiff(:))-thresh)/stdFr);
     threshList = linspace(nanmax(filterDiff(:)),thresh,nSteps);
     slice2 = zeros(size(img));              % In case it doesn't detect anything
     
@@ -221,15 +176,9 @@ for i = 1:Nfr                          % loop thru frames and detect
     movieInfo(i,1).amp = amp;          % amp should be intensity not area!
     movieInfo(i,1).int = featI;
 
-
-    indxStr1 = sprintf(strg1,i); % frame
     
     if VERBOSE
         progressText(i/Nfr,'Detecting peaks');
     end
 end
-
-save([featDir '/movieInfo'],'movieInfo');
-
-rmdir([featDir '/filterDiff'],'s');
 
