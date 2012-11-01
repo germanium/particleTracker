@@ -8,8 +8,10 @@ VERBOSE = true;
 %% Detection parameters 
 
 detParam.bitDepth = 16;
-detParam.pxSize = 0.322;                 % In um/px
-detParam.DT = 0.15;                      % In seconds
+detParam.pxSize = 0.322;                % In um/px
+detParam.DT = 0.15;                     % In seconds
+detParam.area = 2;                      % Minimum area
+detParam.ecce = 0.8;                    % Maximum eccentricity
 
 %% Tracking parameters
 
@@ -137,5 +139,6 @@ trackParam.saveResults = 0;                                % don't save results
 trackParam.probDim = 2;                                    % Problem dimension
 
 %% Run script
+
 pathList = uipickfiles('Prompt','Select *.dv movies');
 batchTrack(pathList, detParam, trackParam, VERBOSE);
