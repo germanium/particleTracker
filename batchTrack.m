@@ -79,10 +79,11 @@ parfor i=1:length(pathList);
         disp('No tracks detected to plot');
     else
                                             % Plot trajectories
-        htracks = figure('Renderer','OpenGL','Visible','off'); % OpenGL por hardware is faster
-        imshow(imadjust(I{1}))
+        htracks = figure('Visible','off'); % OpenGL por hardware is faster
+        imagesc(imadjust(I{1}))
+        axis image off; colormap(gray(256))
         plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
-        title(fname, 'Interpreter', 'none')
+        title(fname, 'Interpreter', 'none','FontSize',16)
                                             % Save parameters 
         Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
             ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
