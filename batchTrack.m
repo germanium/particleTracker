@@ -90,11 +90,16 @@ parfor i=1:length(pathList);
         im = I{1};
                                             % Don't overwrite if exists
         if ~exist('tracksFinal.mat' ,'file')        
-            parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters);
-%             saveASCII(tracksFinal)             % Save tracks to ascii
-            parsave('D_and_alpha.txt', DA, '-ascii')
-            parsave('mean_D_and_A.txt',DAmean, '-ascii')
+            parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
+                DA, DAmean);
             
+            DT = detParam.DT; pxSize = detParam.pxSize;
+            parsave('T.mat', T, DT, pxSize)
+                                            % Save to ascii
+%             parsave('D_and_alpha.txt', DA, '-ascii')
+%             parsave('mean_D_and_A.txt',DAmean, '-ascii')
+%             saveASCII(tracksFinal)             
+
             print(htracks,'-dpng','Trajectories.png');
             close(htracks)
         end
