@@ -26,29 +26,31 @@ highPass = highPass ./ W;
 
 % get difference of gaussians image
 filterDiff = highPass - lowPass;
-figure,imshow(imadjust(filterDiff))
+figure, imshow(imadjust(filterDiff))
 
 %%
 e = edge(filterDiff, 'canny');
 figure, imshow(e);
 %%
-radii = 1:0.5:20;
+radii = 1:0.5:30;
 h = circle_hough(e, radii, 'same','normalise');
 stackSlider(h), axis image
+hHist = h(find(h ~= 0));
+figure, hist(hHist,300)
 
 %% Find some peaks in the accumulator
 % We use the neighbourhood-suppression method of peak finding to ensure
 % that we find spatially separated circles. We select the 10 most prominent
 % peaks, because as it happens we can see that there are 10 coins to find.
 
-peaks = circle_houghpeaks(h, radii, 'nhoodxy', 11, 'nhoodr', 5, 'Threshold',4);
+peaks = circle_houghpeaks(h, radii, 'nhoodxy', 3, 'nhoodr', 3, 'Threshold',4.7);
 
 %% Look at the results
 % We draw the circles found on the image, using both the positions and the
 % radii stored in the |peaks| array. The |circlepoints| function is
 % convenient for this - it is also used by |circle_hough| so comes with it.
 figure,
-imshow(imadjust(img));
+imshow(img_adj);
 hold on;
 for peak = peaks
     [x, y] = circlepoints(peak(3));
@@ -57,15 +59,15 @@ end
 hold off
 
 %% CircularHough_Grd() test
-rawimg = filterDiff;
-tic;
-[accum, circen, cirrad] = CircularHough_Grd(rawimg, [1 10], 0.05);
-toc;
+rawimg = img_double;
 
-figure; imagesc(accum); axis image;
+[accum, circen, cirrad] = CircularHough_Grd(rawimg, [1 30], 0.05);
+
+
+figure; imagesc(accum); axis image off;
 title('Accumulation Array from Circular Hough Transform');
 
-figure; imagesc(img_adj); colormap('gray'); axis image;
+figure; imagesc(img_adj); colormap(gray); axis image off;
 hold on;
 plot(circen(:,1), circen(:,2), 'r+');
 for k = 1 : size(circen, 1),

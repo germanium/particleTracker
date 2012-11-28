@@ -174,7 +174,7 @@ for i = 1:Nfr                   % Loop though frames and filter
     end
 
     % make structure compatible with Khuloud's tracker
-    movieInfo(i,1).xCoord = xCoord;
+    movieInfo(i,1).xCoord = xCoord;         % Can't save it as single for Khuloud's tracker
     movieInfo(i,1).yCoord = yCoord;
     movieInfo(i,1).amp = amp;          % amp should be intensity not area!
     movieInfo(i,1).int = featI;

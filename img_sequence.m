@@ -102,15 +102,32 @@ cd(ImgPathName)
 if ~iscell(ImgFileName)                     % If tif file is a movie
     data = bfopen([ImgPathName ImgFileName]);
     data = data{1};
-    Nfr = size(data,1);                     % # of frames                                            
-    I = cell(1,Nfr);
-    Idisp = cell(Nfr,1);
+    Nfr = size(data,1);                     % # of frames
     
-    for i=1:Nfr
-        I{i} = data{i,1};   
-        Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+    if ~isempty(strfind(data{3,2},'C=3/3')) % If it's RGB convert to gray
+        
+        Nfr = Nfr/3;
+        I = cell(1,Nfr);
+        Idisp = cell(Nfr,1);
+        k = 1;
+        for i=1:3:Nfr*3
+            I1 = cat(3, data{i:(i+2),1});
+            I{k} = rgb2gray(I1);
+            Idisp{k} = imadjust(I{k}, stretchlim(I{k}, [0.01 0.995]));
+            k = k+1;
+        end
+        
+    else                                    % If gray don't convert
+                  
+        I = cell(1,Nfr);
+        Idisp = cell(Nfr,1);
+        for i=1:Nfr
+            I{i} = data{i,1};
+            Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+        end
     end
     
+    clear data
     [~, handles.FileName] = fileparts(ImgFileName); 
     
 else                                        % If each tif is a frame
@@ -130,7 +147,7 @@ cd(handles.FileName)
 
 axes('position',[0.2938  0.0642  0.6983  0.8523])
 
-imshow(Idisp{i})
+imshow(Idisp{1})
 htext = findall(0,'Tag','text1');          % Display frame #
 set(htext,'String','Frame # 1');
 
@@ -183,6 +200,7 @@ end
 guidata(hObject, handles);
 
 
+
 % --- Executes on button press in apply_detection.
 function apply_detection_Callback(hObject, ~, handles)
 Nf = length(handles.I);
@@ -200,10 +218,10 @@ if (get(handles.ROIcheck,'Value'))
     imshow(handles.Idisp{1});
 end
 
-if get(handles.detection_popup,'Value') == 1             % Use DoG      
+if get(handles.detection_popup,'Value') == 1        % Use DoG      
     movieInfo = peakDetector(handles.I, bitDepth, area, ecce, true);
     
-else                                        % Use multiscale products
+else                                                % Use multiscale products
     % initialize structure to store info for tracking
     [movieInfo(1:Nf,1).xCoord] = deal([]);
     [movieInfo(1:Nf,1).yCoord] = deal([]);
@@ -251,6 +269,7 @@ for i=1:size(movieInfo.xCoord,1)
             movieInfo.yCoord(i,1)], R, 30 , 'g');
 end
 hold off
+
 
 % --- Executes on button press in apply_track.
 function apply_track_Callback(hObject, ~, handles)
@@ -418,7 +437,7 @@ else                                                    % If file exists in the 
     overwrite = overwrite_dialog();                     % it's in the trajectory vector folder
     if overwrite
         save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
-        print(htracks,'-dpng ','Trajectories.png');
+        print(htracks,'-dpng','-r200','Trajectories.png');
     else
         disp('Didn''t save tacksFinal.mat, a file with that name already exists')
     end

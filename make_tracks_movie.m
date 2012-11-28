@@ -99,7 +99,7 @@
 % I doesn't work for linux with avi and mov format. It works from mac
 
 TIFS = dir('*.tif');
-load tracksFinal.mat
+load('../tracksFinal.mat')
 
 overlayTracksMovieNew(tracksFinal, [], 60, 1, 'movie', [], 0, 1, 0,[], ...
      0, 1, [], 1, 1, [pwd '/' TIFS(1).name], [], 5,[],'mov', 0.15);

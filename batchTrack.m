@@ -100,7 +100,7 @@ parfor i=1:length(pathList);
 %             parsave('mean_D_and_A.txt',DAmean, '-ascii')
 %             saveASCII(tracksFinal)             
 
-            print(htracks,'-dpng','Trajectories.png');
+            print(htracks,'-dpng','-r200','Trajectories.png');
             close(htracks)
         end
     end
