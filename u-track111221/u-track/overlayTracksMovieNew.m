@@ -2,14 +2,14 @@ function overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
     saveMovie,movieName,filterSigma,classifyGaps,highlightES,showRaw,...
     imageRange,onlyTracks,classifyLft,diffAnalysisRes,intensityScale,...
     colorTracks,firstImageFile,dir2saveMovie,minLength,plotFullScreen,...
-    movieType)
+    movieType,dt)
 %OVERLAYTRACKSMOVIENEW overlays tracks obtained via trackCloseGapsKalman on movies with variable color-coding schemes
 %
 %SYNPOSIS overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
 %    saveMovie,movieName,filterSigma,classifyGaps,highlightES,showRaw,...
 %    imageRange,onlyTracks,classifyLft,diffAnalysisRes,intensityScale,...
 %    colorTracks,firstImageFile,dir2saveMovieminLength,plotFullScreen,...
-%    movieType)
+%    movieType,dt)
 %
 %INPUT  tracksFinal   : Output of trackCloseGapsKalman.
 %       startend      : Row vector indicating first and last frame to
@@ -94,6 +94,8 @@ function overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
 %                       using ImageMagick and ffmpeg. These options works
 %                       only under linux or mac.
 %                       Optional. Default: 'mov'.
+%       dt            : Interval between frames in seconds. If empty it defaults to frame
+%                       number 
 %
 %OUTPUT the movie.
 %
@@ -322,6 +324,13 @@ if nargin < 20 || isempty(movieType)
     movieType = 'mov';
 end
 
+dtLabel = ' sec';                       % If dt empty use frame units, and don't show
+if nargin < 21 || isempty(dt)           %  'sec'
+    dt = 1;
+    dtLabel = [];
+end
+
+
 %define colors to loop through
 colorLoop = [1 0.7 0.7; 1 0 0; 0 1 0; 0 0 1; 1 1 0; 1 0 1; 0 1 1]; %colors: 'light pink',r,g,b,y,m,c
 
@@ -342,8 +351,7 @@ trackStatus  = (trackSEL(:,1) == tracksFirstFrame) + (trackSEL(:,2) == tracksLas
 %give all tracks same classification if lifetime classification not
 %requested
 if classifyLft == 0
-%     trackStatus(:) = 2;
-    trackStatus(:) = 0;
+    trackStatus(:) = 2;
 end
 
 %get number of segments making each track
@@ -769,7 +777,7 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,num2str(iFrame+startend(1)-1),...
+                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-1),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0.505 0 0.495 1]);
             imshow(imageStack,intensityMinMax);
@@ -788,7 +796,7 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,num2str(iFrame+startend(1)-1),...
+                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-1),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0 0 1 0.495]);
             imshow(imageStack,intensityMinMax);
@@ -806,7 +814,7 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,num2str(iFrame+startend(1)-1),...
+                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-1),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
     end
     
@@ -891,18 +899,18 @@ for iFrame = 1 : numFramesMovie
         
         %plot basic tracks
         plot([xCoord2plot0(1,:); xCoord2plot0],[yCoord2plot0(1,:); yCoord2plot0],...
-            'Color',[1 0.7 0.7],'LineWidth',2); %light pink; the artificial repetition of the first line is for avoiding a mess in the first frame when tracks are not color-coded individually
+            'Color',[1 0.7 0.7],'LineWidth',1); %light pink; the artificial repetition of the first line is for avoiding a mess in the first frame when tracks are not color-coded individually
         
         %color individual tracks randomly if requested
         if colorTracks == 1
-            plot(xCoord2plot1,yCoord2plot1,'Color',[1 0.7 0],'LineWidth',2); %orange
-            plot(xCoord2plot2,yCoord2plot2,'Color','r','LineWidth',2); %[1 0 0]
-            plot(xCoord2plot3,yCoord2plot3,'Color','g','LineWidth',2); %[0 1 0]
-            plot(xCoord2plot4,yCoord2plot4,'Color','y','LineWidth',2); %[1 1 0]
-            plot(xCoord2plot5,yCoord2plot5,'Color','b','LineWidth',2); %[0 0 1]
-            plot(xCoord2plot6,yCoord2plot6,'Color','c','LineWidth',2); %[0 1 1]
-            plot(xCoord2plot7,yCoord2plot7,'Color','m','LineWidth',2); %[1 0 1]
-            plot(xCoord2plot8,yCoord2plot8,'Color',[0.6 0 1],'LineWidth',2); %purple
+            plot(xCoord2plot1,yCoord2plot1,'Color',[1 0.7 0],'LineWidth',1); %orange
+            plot(xCoord2plot2,yCoord2plot2,'Color','r','LineWidth',1); %[1 0 0]
+            plot(xCoord2plot3,yCoord2plot3,'Color','g','LineWidth',1); %[0 1 0]
+            plot(xCoord2plot4,yCoord2plot4,'Color','y','LineWidth',1); %[1 1 0]
+            plot(xCoord2plot5,yCoord2plot5,'Color','b','LineWidth',1); %[0 0 1]
+            plot(xCoord2plot6,yCoord2plot6,'Color','c','LineWidth',1); %[0 1 1]
+            plot(xCoord2plot7,yCoord2plot7,'Color','m','LineWidth',1); %[1 0 1]
+            plot(xCoord2plot8,yCoord2plot8,'Color',[0.6 0 1],'LineWidth',1); %purple
         end
         
         %color-code dragtail based on diffusion analysis if supplied
@@ -941,52 +949,52 @@ for iFrame = 1 : numFramesMovie
         
         %red circles: detected feature in the middle of track with status 0
         points2plot = find(pointStatus(:,iFrame)==1);
-        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'ro','MarkerSize',10);
+        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'ro','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'ro','MarkerSize',2);
         
         %magenta circles: detected feature in the middle of track with status 1
         points2plot = find(pointStatus(:,iFrame)==2);
-        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'mo','MarkerSize',10);
+        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'mo','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'mo','MarkerSize',2);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'mo','MarkerSize',10,'LineWidth',2);
         
         %white circles: detected feature in the middle of track with status 2
         points2plot = find(pointStatus(:,iFrame)==3);
-        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wo','MarkerSize',10);
+        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wo','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wo','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wo','MarkerSize',2);
         
         %green circles: detected feature just after birth
         points2plot = find(pointStatus(:,iFrame)==4);
-        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'go','MarkerSize',10);
+        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'go','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'go','MarkerSize',2);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'go','MarkerSize',15,'LineWidth',2);
         
         %yellow circles: detected feature just before death
         points2plot = find(pointStatus(:,iFrame)==5);
-        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yo','MarkerSize',10);
+        plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yo','MarkerSize',5);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yo','MarkerSize',2);
         %         plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yo','MarkerSize',15,'LineWidth',2);
         
         %green diamonds: detected feature just before/after a split
         points2plot = find(pointStatus(:,iFrame)==6);
         if isempty(diffAnalysisRes)
-            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'gd','MarkerSize',10);
+            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'gd','MarkerSize',6);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'gd','MarkerSize',2);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'gd','MarkerSize',15,'LineWidth',2);
         else
-            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',10);
+            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',6);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',15,'LineWidth',2);
         end
         
         %yellow diamonds: detected feature just before/after a merge
         points2plot = find(pointStatus(:,iFrame)==7);
         if isempty(diffAnalysisRes)
-            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yd','MarkerSize',10);
+            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yd','MarkerSize',6);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yd','MarkerSize',2);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'yd','MarkerSize',15,'LineWidth',2);
         else
-            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',10);
+            plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',6);
             %             plot(xCoordMatAll(points2plot,iFrame),yCoordMatAll(points2plot,iFrame),'wd','MarkerSize',15,'LineWidth',2);
         end
         
