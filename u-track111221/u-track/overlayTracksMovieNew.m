@@ -180,7 +180,7 @@ if(isa(fName,'char') && isa(dirName,'char'))
     
     %read first image to get image size
     currentImage = imread(outFileList{1});
-    [isx,isy] = size(currentImage);
+    [isx,isy,~] = size(currentImage);       % Dummy output in case is RGB
     
 else %else, exit
     

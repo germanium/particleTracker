@@ -98,8 +98,10 @@
 % Run from within desired .tif folder 
 % I doesn't work for linux with avi and mov format. It works from mac
 
-TIFS = dir('*.tif');
+TIFs = dir('*.tif');
 load('../tracksFinal.mat')
+dt = 0.01;                      % sec
+dragtailLength = 30;
 
-overlayTracksMovieNew(tracksFinal, [], 60, 1, 'movie', [], 0, 1, 0,[], ...
-     0, 1, [], 1, 1, [pwd '/' TIFS(1).name], [], 5,[],'mov', 0.15);
+overlayTracksMovieNew(tracksFinal, [], dragtailLength, 1, 'movie', [], 0, 1, 0,[], ...
+     0, 1, [], 1, 1, [pwd '/' TIFs(1).name], [], 5,[],'mov', dt);
