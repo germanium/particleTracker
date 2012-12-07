@@ -105,7 +105,6 @@ if ~iscell(ImgFileName)                     % If tif file is a movie
     Nfr = size(data,1);                     % # of frames
     
     if ~isempty(strfind(data{3,2},'C=3/3')) % If it's RGB convert to gray
-        
         Nfr = Nfr/3;
         I = cell(1,Nfr);
         Idisp = cell(Nfr,1);
@@ -117,8 +116,7 @@ if ~iscell(ImgFileName)                     % If tif file is a movie
             k = k+1;
         end
         
-    else                                    % If gray don't convert
-                  
+    else                                    % If gray don't convert   
         I = cell(1,Nfr);
         Idisp = cell(Nfr,1);
         for i=1:Nfr
@@ -206,8 +204,8 @@ function apply_detection_Callback(hObject, ~, handles)
 Nf = length(handles.I);
 
 bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
-area = str2double(get(handles.edit_area, 'String'));
-ecce = str2double(get(handles.edit_ecce, 'String'));
+maxArea = str2double(get(handles.edit_area, 'String'));
+minEcce = str2double(get(handles.edit_ecce, 'String'));
 
 if (get(handles.ROIcheck,'Value'))
     ROI_dialog();
@@ -219,7 +217,7 @@ if (get(handles.ROIcheck,'Value'))
 end
 
 if get(handles.detection_popup,'Value') == 1        % Use DoG      
-    movieInfo = peakDetector(handles.I, bitDepth, area, ecce, true);
+    movieInfo = peakDetector(handles.I, bitDepth, maxArea, minEcce, true);
     
 else                                                % Use multiscale products
     % initialize structure to store info for tracking
@@ -248,6 +246,9 @@ end
 hold off
 
 handles.movieInfo = movieInfo;
+handles.bitDepth = bitDepth;
+handles.maxArea = maxArea;
+handles.minEcce = minEcce;
 guidata(hObject, handles);
 
 
@@ -418,26 +419,36 @@ else
     title({handles.PathName,handles.FileName},'Interpreter','none')
 end
 
-% Save results
-handles.Tr_parameters{1} = ['Maximum gap length: ', num2str(gapCloseParam.timeWindow)];
-handles.Tr_parameters{2} = ['Minimum track segment length: ', num2str(gapCloseParam.minTrackLen)];
+% Save tracking parameteres
+                    
+param.det.bitDepth = handles.bitDepth;              % Detection parameters
+param.det.maxArea =  handles.maxArea;
+param.det.minEcce = handles.minEcce;
 
-                                          
-assignin('base','tracksFinal',tracksFinal)              % Save to workspace 
-assignin('base','im',handles.I{1})
-assignin('base','Tr_parameters', handles.Tr_parameters)
+param.tr.maxGapLength = gapCloseParam.timeWindow;   % Tracking param
+param.tr.minSegmentLength = gapCloseParam.minTrackLen;
+param.tr.maxSearchRadius = costMatrices(2).parameters.maxSearchRadius;
 
-Tr_parameters = handles.Tr_parameters;                  % for saving 
-im = handles.I{1};
+im = handles.I{1};                                  % Movie data
+movieInfo = handles.movieInfo;
+T = tracks2cell(tracksFinal);
+
+assignin('base','tracksFinal',tracksFinal)          % Save to workspace 
+assignin('base','im',im)
+assignin('base','Tr_parameters', param)
 
 if ~exist([saveResults.dir,'/tracksFinal.mat'] ,'file') % Don't overwrite if exists
-    save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
-    print(gcf,'-dpng ','Trajectories.png');
+    save('tracksFinal.mat', 'tracksFinal', 'im', 'param');
+    save('T.mat', 'T')
+    save('detections.mat', 'movieInfo')
+    print(gcf,'-dpng','-r200','Trajectories.png');
 else                                                    % If file exists in the folder 
     overwrite = overwrite_dialog();                     % it's in the trajectory vector folder
     if overwrite
-        save('tracksFinal.mat', 'tracksFinal', 'im', 'Tr_parameters');
-        print(htracks,'-dpng','-r200','Trajectories.png');
+        save('tracksFinal.mat', 'tracksFinal', 'im', 'param');
+        save('T.mat', 'T')
+        save('detections.mat', 'movieInfo')
+        print(gcf,'-dpng','-r200','Trajectories.png');
     else
         disp('Didn''t save tacksFinal.mat, a file with that name already exists')
     end

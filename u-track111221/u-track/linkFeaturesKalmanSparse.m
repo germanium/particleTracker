@@ -291,9 +291,9 @@ numTracksWorstCase = round(sum(numFeatures)/2);
 
 %initialize auxiliary matrices for storing information related to tracks
 %that end in the middle of the movie
-trackedFeatureIndxAux = zeros(numTracksWorstCase,numFrames);
-nnDistFeaturesAux = NaN(numTracksWorstCase,numFrames);
-prevCostAux = NaN(numTracksWorstCase,numFrames);
+trackedFeatureIndxAux = zeros(numTracksWorstCase,numFrames,'single');    % THIS MATRICES TAKE A LOT 
+nnDistFeaturesAux = NaN(numTracksWorstCase,numFrames,'single');          % OF MEMORY
+prevCostAux = NaN(numTracksWorstCase,numFrames,'single');
 rowEnd = numTracksWorstCase;
 
 %initialize progress display

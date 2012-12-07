@@ -1,4 +1,4 @@
-function movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
+function movieInfo = peakDetector(I,bitDepth,maxArea, maxEcce, VERBOSE)
 % movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
 %
 %
@@ -24,12 +24,12 @@ if nargin < 2 || isempty(bitDepth)
     bitDepth = 16;
 end
 
-if nargin < 3 || isempty(area)
-    area = 2;
+if nargin < 3 || isempty(maxArea)
+    maxArea = 2;
 end
 
-if nargin < 4 || isempty(ecce)
-    ecce = 0.8;
+if nargin < 4 || isempty(maxEcce)
+    maxEcce = 0.8;
 end
 
 if nargin < 5 
@@ -134,8 +134,8 @@ for i = 1:Nfr                   % Loop though frames and filter
     % here we sort through features and retain only the "good" ones
     % we assume the good features have area > 2 pixels, and are circular
     % hence eccentricity > 0.8
-    goodFeatIdxA = vertcat(featProp2(:,1).Area) > area;
-    goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < ecce;
+    goodFeatIdxA = vertcat(featProp2(:,1).Area) > maxArea;
+    goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < maxEcce;
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
     goodFeatIdx = goodFeatIdxA & goodFeatIdxE;
 
