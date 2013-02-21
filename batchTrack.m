@@ -44,13 +44,17 @@ parfor i=1:length(pathList);
     movieInfo=[];  tracksFinal=[];
 %     clear java
     
-    [pathstr, fname] = fileparts(pathList{i});
+    [pathstr, movName] = fileparts(pathList{i});
     cd(pathstr)
-    mkdir(fname)
-    cd(fname)
+    if isdir(movName)
+        error(['Folder' movName 'already exist'])
+    else
+        mkdir(movName)
+        cd(movName)
+    end
     
     if VERBOSE
-        fprintf(['\n--------Processing movie ' fname '--------\n\n'])
+        fprintf(['\n--------Processing movie ' movName '--------\n\n'])
     end
                                             
     data = bfopen(pathList{i});                % Load data 
@@ -83,7 +87,7 @@ parfor i=1:length(pathList);
         imagesc(imadjust(I{1}))
         axis image off; colormap(gray(256))
         plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
-        title(fname, 'Interpreter', 'none','FontSize',16)
+        title(movName, 'Interpreter', 'none','FontSize',16)
                                             % Save parameters 
         Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
             ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};

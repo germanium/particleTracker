@@ -140,8 +140,13 @@ else                                        % If each tif is a frame
     handles.FileName = ImgFileName{1}(1:(end-7));   
 end
 
-mkdir(handles.FileName);                    % To save results in a new folder
-cd(handles.FileName)
+if isdir(handles.FileName)
+    warning(['Folder ' handles.FileName ' already exist'])
+    cd(handles.FileName)
+else
+    mkdir(handles.FileName);                    % To save results in a new folder
+    cd(handles.FileName)
+end
 
 axes('position',[0.2938  0.0642  0.6983  0.8523])
 
@@ -162,6 +167,8 @@ if isfield(handles,'movieInfo')             % Clear movieInfo
 end
 
 guidata(hObject, handles);
+
+
 
 
 % Load all tifs in folder

@@ -763,6 +763,14 @@ for iFrame = 1 : numFramesMovie
     %     imageStack(:,:,3) = imageStack(:,:,2);
     
     %plot image in current frame and show frame number
+    if iFrame == 1
+        axes('Position',[0 0 1 1]);
+        imshow(imageStack,intensityMinMax);
+        text(10,200, 'Set desired image size and press any key',...
+                'Color','white','FontSize',18);
+        pause
+    end
+    
     clf;
     switch showRaw
         case 1

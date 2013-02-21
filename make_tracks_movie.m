@@ -100,8 +100,8 @@
 
 TIFs = dir('*.tif');
 load('../tracksFinal.mat')
-dt = 0.01;                      % sec
+DT = 0.15;                      % sec
 dragtailLength = 30;
 
 overlayTracksMovieNew(tracksFinal, [], dragtailLength, 1, 'movie', [], 0, 1, 0,[], ...
-     0, 1, [], 1, 1, [pwd '/' TIFs(1).name], [], 5,[],'mov', dt);
+     0, 1, [], 1, 1, [pwd '/' TIFs(1).name], [], 5,0,'mov', DT);
