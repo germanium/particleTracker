@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 01-Nov-2012 11:39:54
+% Last Modified by GUIDE v2.5 25-Feb-2013 14:37:37
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -44,28 +44,19 @@ else
     gui_mainfcn(gui_State, varargin{:});
 end
 
-
 % End initialization code - DO NOT EDIT
-
-function Menu_Callback(hObject, eventdata, handles)
-
-
-% --- Outputs from this function are returned to the command line.
-function varargout = img_sequence_OutputFcn(hObject, eventdata, handles) 
-
-% Get default command line output from handles structure
-varargout{1} = handles.output;
 
 
 %% --- Executes just before img_sequence is made visible.
-function img_sequence_OpeningFcn(hObject, eventdata, handles, varargin)
+function img_sequence_OpeningFcn(hObject, ~, handles, varargin)
 
 % Choose default command line output for img_sequence
 handles.output = hObject;                                        
 handles.PathName = '/DIskC/Data/';  % Default initial directory 
 handles.fr = 1;                         % Starting frame
 addpath('~/Documents/MATLAB/figure_tools/',...
-    '~/Documents/MATLAB/file_tools/')
+        '~/Documents/MATLAB/file_tools/',...
+        '~/Documents/MATLAB/image_tools/')
 
 guidata(hObject, handles);
 
@@ -100,38 +91,23 @@ function load_img_Callback(hObject, ~, handles)
 cd(ImgPathName) 
 
 if ~iscell(ImgFileName)                     % If tif file is a movie
-    data = bfopen([ImgPathName ImgFileName]);
-    data = data{1};
-    Nfr = size(data,1);                     % # of frames
     
-    if ~isempty(strfind(data{3,2},'C=3/3')) % If it's RGB convert to gray
-        Nfr = Nfr/3;
-        I = cell(1,Nfr);
-        Idisp = cell(Nfr,1);
-        k = 1;
-        for i=1:3:Nfr*3
-            I1 = cat(3, data{i:(i+2),1});
-            I{k} = rgb2gray(I1);
-            Idisp{k} = imadjust(I{k}, stretchlim(I{k}, [0.01 0.995]));
-            k = k+1;
-        end
-        
-    else                                    % If gray don't convert   
-        I = cell(1,Nfr);
-        Idisp = cell(Nfr,1);
-        for i=1:Nfr
-            I{i} = data{i,1};
+    I = mov2img([ImgPathName ImgFileName], false);
+    Nfr = length(I);
+    
+    Idisp = cell(Nfr,1);
+    for i=1:Nfr                             % Increase contrast
             Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
-        end
     end
-    
-    clear data
+        
     [~, handles.FileName] = fileparts(ImgFileName); 
     
 else                                        % If each tif is a frame
+    
     Nfr = length(ImgFileName);              % # of frames
     I = cell(Nfr,1);
     Idisp = cell(Nfr,1);
+    
     for i=1:Nfr
         I{i} = imread([ImgPathName,ImgFileName{i}]);
         Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
@@ -170,7 +146,6 @@ guidata(hObject, handles);
 
 
 
-
 % Load all tifs in folder
 function Load_all_Callback(hObject, ~, handles)
 FILES = dir('*.tif'); 
@@ -203,7 +178,6 @@ if isfield(handles,'movieInfo')             % Clear movieInfo
 end
 
 guidata(hObject, handles);
-
 
 
 % --- Executes on button press in apply_detection.
@@ -302,7 +276,7 @@ kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
     % Gap closing time window. Depends on SNR and fluorophore blinking. Critical
     %  if too small or too large. Robust in proper range (default 10 frames)
-gapCloseParam.timeWindow = str2num(get(findall(0,'Tag','gapClose_edit'), 'String'));
+gapCloseParam.timeWindow = str2num(get(findall(0,'Tag','edit_gapClose'), 'String'));
     % Flag for merging and splitting
 MergeCheck = findall(0,'Tag','MergeCheck');
 gapCloseParam.mergeSplit = get(MergeCheck,'Value');
@@ -310,7 +284,7 @@ gapCloseParam.mergeSplit = get(MergeCheck,'Value');
     % Minimum track segment length used in the gap closing, merging and
     %  splitting step. Excludes short tracks from participatin in the gap
     %  closing, mergin and splitting step.
-gapCloseParam.minTrackLen = str2num(get(findall(0,'Tag','edit7'), 'String'));
+gapCloseParam.minTrackLen = str2num(get(findall(0,'Tag','edit_minTrackLen'), 'String'));
 
     % Time window diagnostics: 1 to plot a histogram of gap lengths in
     %  the end of tracking, 0 or empty otherwise
@@ -327,7 +301,7 @@ parameters.linearMotion = get(linearH,'Value') - 1;
     % Search radius lower limit
 parameters.minSearchRadius = 2;
     % Search radius upper limit
-parameters.maxSearchRadius = str2num(get(findall(0,'Tag','edit11'), 'String'));
+parameters.maxSearchRadius = str2num(get(findall(0,'Tag','edit_searchRadius'), 'String'));
     % Standard deviation multiplication factor -> default is 3 INFLUYE MUCHO
 parameters.brownStdMult = 3;
     % Flag for using local density in search radius estimation
@@ -418,9 +392,7 @@ if isempty(tracksFinal)
     return
 else
     
-    handles.tracksFinal = tracksFinal;                  % Need tracksFinal in handles
-    guidata(hObject, handles);                          % for scrollbar window
-    trajectories('img_sequence', handles.mainUI);       % Scrollbar window
+    plotTracks(tracksFinal, handles.Idisp)
     
     htracks = plotTracks2D(tracksFinal, [], '3', [], 0, 1, handles.Idisp{1}, [], 0);
     title({handles.PathName,handles.FileName},'Interpreter','none')
@@ -510,104 +482,14 @@ end
 
 %% Unused UI functions ------------------------------------------------------------
 
-function edit8_Callback(~, ~, ~)
+function edit_gapClose_CreateFcn(hObject, eventdata, handles)
 
-function analysis_Callback(~, ~, ~)
-
-% --- Executes during object creation, after setting all properties.
-function edit8_CreateFcn(hObject, ~, ~)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in checkbox2.
-function checkbox2_Callback(hObject, eventdata, handles)
-
-
-function edit9_Callback(~, eventdata, handles)
-
-
-% --- Executes during object creation, after setting all properties.
-function edit9_CreateFcn(hObject, eventdata, ~)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-function edit10_Callback(hObject, eventdata, handles)
-
-% --- Executes during object creation, after setting all properties.
-function edit10_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in MergeCheck.
-function MergeCheck_Callback(hObject, ~, ~)
-
-% --- Executes on button press in checkbox1.
-function checkbox1_Callback(hObject, ~, handles)
-
-
-function gapClose_edit_Callback(~, eventdata, ~)
-
-
-function gapClose_edit_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function edit7_Callback(hObject, eventdata, handles)
-
-
-% --- Executes during object creation, after setting all properties.
-function edit7_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in ROIcheck.
-function ROIcheck_Callback(hObject, eventdata, handles)
-
-% --- Executes during object creation, after setting all properties.
-function edit1_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
 
 % --- Executes during object creation, after setting all properties.
 function edit_bitDepth_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-% --- Executes during object creation, after setting all properties.
-function edit3_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-%--- Executes during object creation, after setting all properties.
-function edit4_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes during object creation, after setting all properties.
-function edit5_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
@@ -623,112 +505,52 @@ if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColo
     set(hObject,'BackgroundColor',[.9 .9 .9]);
 end
 
-function edit_bitDepth_Callback(hObject, eventdata, handles)
-
-function edit11_Callback(hObject, eventdata, handles)
-
-% --- Executes during object creation, after setting all properties.
-function edit11_CreateFcn(hObject, eventdata, handles)
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-% --- Executes on button press in LinealCheck.
-function LinealCheck_Callback(hObject, eventdata, handles)
-
-
-% --- Executes on button press in DetectDotsCheck.
-function DetectDotsCheck_Callback(hObject, eventdata, handles)
-
-
-% --- Executes on button press in PlotAlphaCheck.
-function PlotAlphaCheck_Callback(hObject, eventdata, handles)
-
-
-function edit4_Callback(hObject, eventdata, handles)
-
-
-function edit5_Callback(hObject, eventdata, handles)
-
-
-% --- Executes on selection change in linear_popup.
-function linear_popup_Callback(hObject, eventdata, handles)
-% hObject    handle to linear_popup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns linear_popup contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from linear_popup
-
-
 % --- Executes during object creation, after setting all properties.
 function linear_popup_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to linear_popup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
 
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
-
 
 % --- Executes during object creation, after setting all properties.
 function detection_popup_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to detection_popup (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
 
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
-
-
-
-function edit_area_Callback(hObject, eventdata, handles)
-% hObject    handle to edit_area (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of edit_area as text
-%        str2double(get(hObject,'String')) returns contents of edit_area as a double
-
-
-% --- Executes during object creation, after setting all properties.
-function edit_area_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to edit_area (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-
-
-function edit_ecce_Callback(hObject, eventdata, handles)
-% hObject    handle to edit_ecce (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: get(hObject,'String') returns contents of edit_ecce as text
-%        str2double(get(hObject,'String')) returns contents of edit_ecce as a double
-
 
 % --- Executes during object creation, after setting all properties.
 function edit_ecce_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to edit_ecce (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
 
-% Hint: edit controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+
+% --- Executes during object creation, after setting all properties.
+function edit_area_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_minTrackLen_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_searchRadius_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+% --- Outputs from this function are returned to the command line.
+function varargout = img_sequence_OutputFcn(hObject, eventdata, handles) 
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
