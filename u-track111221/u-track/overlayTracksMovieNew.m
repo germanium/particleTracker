@@ -765,7 +765,7 @@ for iFrame = 1 : numFramesMovie
     %plot image in current frame and show frame number
     if iFrame == 1
         axes('Position',[0 0 1 1]);
-        imshow(imageStack,intensityMinMax);
+        imshow(flipud(imageStack),intensityMinMax);
         text(10,200, 'Set desired image size and press any key',...
                 'Color','white','FontSize',18);
         pause
@@ -776,7 +776,7 @@ for iFrame = 1 : numFramesMovie
         case 1
             
             axes('Position',[0 0 0.495 1]);
-            imshow(imageStack,intensityMinMax);
+            imshow(flipud(imageStack),intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
@@ -788,14 +788,14 @@ for iFrame = 1 : numFramesMovie
                 textDeltaCoord,[num2str(dt*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0.505 0 0.495 1]);
-            imshow(imageStack,intensityMinMax);
+            imshow(flipud(imageStack),intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
             
         case 2
             axes('Position',[0 0.505 1 0.495]);
-            imshow(imageStack,intensityMinMax);
+            imshow(flipud(imageStack),intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
@@ -807,13 +807,13 @@ for iFrame = 1 : numFramesMovie
                 textDeltaCoord,[num2str(dt*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0 0 1 0.495]);
-            imshow(imageStack,intensityMinMax);
+            imshow(flipud(imageStack),intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
         otherwise
             axes('Position',[0 0 1 1]);
-            imshow(imageStack,intensityMinMax);
+            imshow(flipud(imageStack),intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
