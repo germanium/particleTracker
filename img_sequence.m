@@ -182,38 +182,38 @@ guidata(hObject, handles);
 
 % --- Executes on button press in apply_detection.
 function apply_detection_Callback(hObject, ~, handles)
-Nf = length(handles.I);
+Nfr = length(handles.I);
 
 bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
-maxArea = str2double(get(handles.edit_area, 'String'));
+minArea = str2double(get(handles.edit_area, 'String'));
 minEcce = str2double(get(handles.edit_ecce, 'String'));
 
 if (get(handles.ROIcheck,'Value'))
     ROI_dialog();
     handles.BW = roipoly();
-    for i=1:Nf
+    for i=1:Nfr
         handles.I{i} = handles.BW.*handles.I{i};
     end
     imshow(handles.Idisp{1});
 end
 
 if get(handles.detection_popup,'Value') == 1        % Use DoG      
-    movieInfo = peakDetector(handles.I, bitDepth, maxArea, minEcce, true);
+    movieInfo = peakDetector(handles.I, bitDepth, minArea, minEcce, true);
     
 else                                                % Use multiscale products
     % initialize structure to store info for tracking
-    [movieInfo(1:Nf,1).xCoord] = deal([]);
-    [movieInfo(1:Nf,1).yCoord] = deal([]);
-    [movieInfo(1:Nf,1).amp] = deal([]);
+    [movieInfo(1:Nfr,1).xCoord] = deal([]);
+    [movieInfo(1:Nfr,1).yCoord] = deal([]);
+    [movieInfo(1:Nfr,1).amp] = deal([]);
     % trackCloseGapsKalmanSparse only uses xCoord y yCoord
     
     progressText(0, 'Detecting peaks')
-    for i=1:Nf
+    for i=1:Nfr
         frameInfo = spotDetector(double(handles.I{i}));
         movieInfo(i,1).xCoord = frameInfo.xCoord;
         movieInfo(i,1).yCoord = frameInfo.yCoord;
         movieInfo(i,1).amp = [frameInfo.area zeros(length(frameInfo.area))];
-        progressText(i/Nf, 'Detecting peaks')
+        progressText(i/Nfr, 'Detecting peaks')
     end
 end
 
@@ -228,7 +228,7 @@ hold off
 
 handles.movieInfo = movieInfo;
 handles.bitDepth = bitDepth;
-handles.maxArea = maxArea;
+handles.minArea = minArea;
 handles.minEcce = minEcce;
 guidata(hObject, handles);
 
@@ -401,7 +401,7 @@ end
 % Save tracking parameteres
                     
 param.det.bitDepth = handles.bitDepth;              % Detection parameters
-param.det.maxArea =  handles.maxArea;
+param.det.maxArea =  handles.minArea;
 param.det.minEcce = handles.minEcce;
 
 param.tr.maxGapLength = gapCloseParam.timeWindow;   % Tracking param
