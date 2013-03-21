@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 25-Feb-2013 14:37:37
+% Last Modified by GUIDE v2.5 20-Mar-2013 16:13:27
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -182,13 +182,11 @@ guidata(hObject, handles);
 
 % --- Executes on button press in apply_detection.
 function apply_detection_Callback(hObject, ~, handles)
+detPar = [];                        % Clear detection parameters every time it's run
 Nfr = length(handles.I);
 
-bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
-minArea = str2double(get(handles.edit_area, 'String'));
-minEcce = str2double(get(handles.edit_ecce, 'String'));
-
 if (get(handles.ROIcheck,'Value'))
+    
     ROI_dialog();
     handles.BW = roipoly();
     for i=1:Nfr
@@ -196,17 +194,24 @@ if (get(handles.ROIcheck,'Value'))
     end
     imshow(handles.Idisp{1});
 end
-
-if get(handles.detection_popup,'Value') == 1        % Use DoG      
-    movieInfo = peakDetector(handles.I, bitDepth, minArea, minEcce, true);
+                                    % Detection algorithm index
+detPar.algo = get(handles.detection_popup,'Value'); 
+                                    
+if detPar.algo == 1                 % Use DoG   
     
-else                                                % Use multiscale products
-    % initialize structure to store info for tracking
+    detPar.bitDepth = str2double(get(handles.edit_detParam1, 'String'));
+    detPar.minArea = str2double(get(handles.edit_detParam2, 'String'));
+    detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
+
+    movieInfo = peakDetector(handles.I, detPar.bitDepth, ...
+        detPar.minArea, detPar.minEcce, true);
+                                    
+elseif detPar.algo == 2             % Use multiscale products
+                                    % Initialize structure to store info for tracking
     [movieInfo(1:Nfr,1).xCoord] = deal([]);
     [movieInfo(1:Nfr,1).yCoord] = deal([]);
     [movieInfo(1:Nfr,1).amp] = deal([]);
-    % trackCloseGapsKalmanSparse only uses xCoord y yCoord
-    
+                                    % trackCloseGapsKalmanSparse only uses xCoord y yCoord
     progressText(0, 'Detecting peaks')
     for i=1:Nfr
         frameInfo = spotDetector(double(handles.I{i}));
@@ -215,6 +220,16 @@ else                                                % Use multiscale products
         movieInfo(i,1).amp = [frameInfo.area zeros(length(frameInfo.area))];
         progressText(i/Nfr, 'Detecting peaks')
     end
+                                    
+elseif detPar.algo == 3             % Detect macro object
+    
+    detePar.minArea = str2double(get(handles.edit_detParam1, 'String'));
+    detPar.maxArea = str2double(get(handles.edit_detParam2, 'String'));
+    detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
+    
+    movieInfo = partDetector(handles.I, [detePar.minArea detePar.maxArea], ...
+        minEcce, true);
+    
 end
 
 imshow(handles.Idisp{1});
@@ -227,23 +242,45 @@ end
 hold off
 
 handles.movieInfo = movieInfo;
-handles.bitDepth = bitDepth;
-handles.minArea = minArea;
-handles.minEcce = minEcce;
+handles.detPar = detPar;
+
 guidata(hObject, handles);
 
 
-% --- Executes on button press in AnalyzeFrame.
-function AnalyzeFrame_Callback(~, ~, handles)
+% --- Executes on button press in apply_detection_frame.
+function apply_detection_frame_Callback(~, ~, handles)
 
-fr = handles.fr; 
-bitDepth = str2double(get(handles.edit_bitDepth, 'String'));
-area = str2double(get(handles.edit_area, 'String'));
-ecce = str2double(get(handles.edit_ecce, 'String'));
+iF = handles.fr; 
 
-movieInfo = peakDetector(handles.I(fr), bitDepth, area, ecce, true);
+if get(handles.detection_popup,'Value') == 1 
+    
+    bitDepth = str2double(get(handles.edit_detParam1, 'String'));
+    area = str2double(get(handles.edit_detParam2, 'String'));
+    ecce = str2double(get(handles.edit_detParam3, 'String'));
 
-imshow(handles.Idisp{fr});
+    movieInfo = peakDetector(handles.I(iF), bitDepth, area, ecce, true);
+    
+elseif get(handles.detection_popup,'Value') == 2
+                                    % Initialize structure to store info for tracking
+    [movieInfo(1,1).xCoord] = deal([]);
+    [movieInfo(1,1).yCoord] = deal([]);
+    [movieInfo(1,1).amp] = deal([]);
+                                    % trackCloseGapsKalmanSparse only uses xCoord y yCoord
+    frameInfo = spotDetector(double(handles.I{iF}));
+    movieInfo(1,1).xCoord = frameInfo.xCoord;
+    movieInfo(1,1).yCoord = frameInfo.yCoord;
+    movieInfo(1,1).amp = [frameInfo.area zeros(length(frameInfo.area))];    
+    
+else
+
+    minArea = str2double(get(handles.edit_detParam1, 'String'));
+    maxArea = str2double(get(handles.edit_detParam2, 'String'));
+    minEcce = str2double(get(handles.edit_detParam3, 'String'));
+    
+    movieInfo = partDetector(handles.I(iF), [minArea maxArea], minEcce, true);
+end
+
+imshow(handles.Idisp{iF});
 hold on
 for i=1:size(movieInfo.xCoord,1)
     R = sqrt(movieInfo.amp(i,1)/pi);        % Calculate R from area
@@ -254,7 +291,9 @@ hold off
 
 
 % --- Executes on button press in apply_track.
-function apply_track_Callback(hObject, ~, handles)
+function apply_track_Callback(~, ~, handles)
+                        % Once detection finishes remove I to free up memory
+handles = rmfield(handles, 'I'); 
 
 % Cost functions
     % Frame-to-frame linking
@@ -276,7 +315,7 @@ kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
     % Gap closing time window. Depends on SNR and fluorophore blinking. Critical
     %  if too small or too large. Robust in proper range (default 10 frames)
-gapCloseParam.timeWindow = str2num(get(findall(0,'Tag','edit_gapClose'), 'String'));
+gapCloseParam.timeWindow = str2double(get(findall(0,'Tag','edit_gapClose'), 'String'));
     % Flag for merging and splitting
 MergeCheck = findall(0,'Tag','MergeCheck');
 gapCloseParam.mergeSplit = get(MergeCheck,'Value');
@@ -284,7 +323,7 @@ gapCloseParam.mergeSplit = get(MergeCheck,'Value');
     % Minimum track segment length used in the gap closing, merging and
     %  splitting step. Excludes short tracks from participatin in the gap
     %  closing, mergin and splitting step.
-gapCloseParam.minTrackLen = str2num(get(findall(0,'Tag','edit_minTrackLen'), 'String'));
+gapCloseParam.minTrackLen = str2double(get(findall(0,'Tag','edit_minTrackLen'), 'String'));
 
     % Time window diagnostics: 1 to plot a histogram of gap lengths in
     %  the end of tracking, 0 or empty otherwise
@@ -301,7 +340,7 @@ parameters.linearMotion = get(linearH,'Value') - 1;
     % Search radius lower limit
 parameters.minSearchRadius = 2;
     % Search radius upper limit
-parameters.maxSearchRadius = str2num(get(findall(0,'Tag','edit_searchRadius'), 'String'));
+parameters.maxSearchRadius = str2double(get(findall(0,'Tag','edit_searchRadius'), 'String'));
     % Standard deviation multiplication factor -> default is 3 INFLUYE MUCHO
 parameters.brownStdMult = 3;
     % Flag for using local density in search radius estimation
@@ -380,8 +419,9 @@ verbose = 1;
 probDim = 2;
 
 % tracking function call
-[tracksFinal,~,~] = trackCloseGapsKalmanSparse(handles.movieInfo,...
-    costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
+tracksFinal = trackCloseGapsKalmanSparse(handles.movieInfo,...
+    costMatrices, gapCloseParam, kalmanFunctions, probDim, ...
+    saveResults, verbose);
 
 % Plot trajectories 
     % Plot split as a white dash-dotted line
@@ -399,16 +439,14 @@ else
 end
 
 % Save tracking parameteres
-                    
-param.det.bitDepth = handles.bitDepth;              % Detection parameters
-param.det.maxArea =  handles.minArea;
-param.det.minEcce = handles.minEcce;
+
+param.det = handles.detPar; 
 
 param.tr.maxGapLength = gapCloseParam.timeWindow;   % Tracking param
 param.tr.minSegmentLength = gapCloseParam.minTrackLen;
 param.tr.maxSearchRadius = costMatrices(2).parameters.maxSearchRadius;
 
-im = handles.I{1};                                  % Movie data
+im = handles.Idisp{1};                                  % Movie data
 movieInfo = handles.movieInfo;
 T = tracks2cell(tracksFinal);
 
@@ -457,7 +495,7 @@ end
 
 
 % --- Executes on selection change in detection_popup.
-function detection_popup_Callback(hObject, eventdata, handles)
+function detection_popup_Callback(hObject, ~, handles)
 % hObject    handle to detection_popup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -466,17 +504,48 @@ function detection_popup_Callback(hObject, eventdata, handles)
 %        contents{get(hObject,'Value')} returns selected item from detection_popup
 
 method = get(hObject,'Value');
-if method == 1
-    set(handles.text_area, 'Visible', 'on')
-    set(handles.text_ecce, 'Visible', 'on')
-    set(handles.edit_area, 'Visible', 'on')
-    set(handles.edit_ecce, 'Visible', 'on')
 
-elseif method ==2
-    set(handles.text_area, 'Visible', 'off')
-    set(handles.text_ecce, 'Visible', 'off')
-    set(handles.edit_area, 'Visible', 'off')
-    set(handles.edit_ecce, 'Visible', 'off')
+if method == 1              % DoG
+    
+    set(handles.text_detParam1, 'String', 'Image bit depth:')
+    set(handles.edit_detParam1, 'String', '16')
+    set(handles.text_detParam2, 'String', 'Minimum spot area:')
+    set(handles.edit_detParam2, 'String', '2')
+    set(handles.edit_detParam2, 'TooltipString', 'Smallest accepted spots, measured in pixels')
+    set(handles.text_detParam3, 'String', 'Maximum eccentricity:')
+    set(handles.edit_detParam3, 'String', '0.8')
+    
+    set(handles.text_detParam2, 'Visible', 'on')
+    set(handles.edit_detParam2, 'Visible', 'on')
+    set(handles.text_detParam3, 'Visible', 'on')
+    set(handles.edit_detParam3, 'Visible', 'on')
+
+elseif method == 2          % Multiscale products
+    
+    set(handles.text_detParam1, 'String', 'Image bit depth:')
+    set(handles.edit_detParam1, 'String', '16')
+    
+    set(handles.text_detParam2, 'Visible', 'off')
+    set(handles.edit_detParam2, 'Visible', 'off')
+    set(handles.text_detParam3, 'Visible', 'off')
+    set(handles.edit_detParam3, 'Visible', 'off')
+
+elseif method == 3          % Macro object
+    
+    set(handles.text_detParam1, 'String', 'Minimum spot area:')
+    set(handles.edit_detParam1, 'String', '100')
+    set(handles.edit_detParam1, 'TooltipString', 'Smallest accepted spots, measured in pixels')
+    set(handles.text_detParam2, 'String', 'Maximum spot area:')
+    set(handles.edit_detParam2, 'String', '500')
+    set(handles.edit_detParam2, 'TooltipString', 'Biggest accepted spots, measured in pixels')
+    set(handles.text_detParam3, 'String', 'Maximum eccentricity:')
+    set(handles.edit_detParam3, 'String', '0.5')
+    
+    set(handles.text_detParam2, 'Visible', 'on')
+    set(handles.edit_detParam2, 'Visible', 'on')
+    set(handles.text_detParam3, 'Visible', 'on')
+    set(handles.edit_detParam3, 'Visible', 'on')
+ 
 end
 
 
@@ -489,7 +558,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 % --- Executes during object creation, after setting all properties.
-function edit_bitDepth_CreateFcn(hObject, eventdata, handles)
+function edit_detParam1_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
@@ -520,14 +589,14 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 % --- Executes during object creation, after setting all properties.
-function edit_ecce_CreateFcn(hObject, eventdata, handles)
+function edit_detParam3_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
 
 % --- Executes during object creation, after setting all properties.
-function edit_area_CreateFcn(hObject, eventdata, handles)
+function edit_detParam2_CreateFcn(hObject, eventdata, handles)
 
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
