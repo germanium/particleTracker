@@ -1,8 +1,8 @@
-function overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
-    saveMovie,movieName,filterSigma,classifyGaps,highlightES,showRaw,...
-    imageRange,onlyTracks,classifyLft,diffAnalysisRes,intensityScale,...
-    colorTracks,firstImageFile,dir2saveMovie,minLength,plotFullScreen,...
-    movieType,dt)
+function overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
+    saveMovie, movieName, filterSigma, classifyGaps, highlightES,...
+    showRaw, imageRange, onlyTracks, classifyLft, diffAnalysisRes,...
+    intensityScale, colorTracks, firstImageFile, dir2saveMovie,...
+    minLength, plotFullScreen, movieType, DT, IMrotate)
 %OVERLAYTRACKSMOVIENEW overlays tracks obtained via trackCloseGapsKalman on movies with variable color-coding schemes
 %
 %SYNPOSIS overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
@@ -13,8 +13,8 @@ function overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
 %
 %INPUT  tracksFinal   : Output of trackCloseGapsKalman.
 %       startend      : Row vector indicating first and last frame to
-%                       include in movie. Format: [startframe endframe].
-%                       Optional. Default: [(first frame with tracks) (last frame with tracks)]
+%                       include in movie. Format: [startframe endframe]. Optional. 
+%                       Default: [(first frame with tracks) (last frame with tracks)]
 %       dragtailLength: Length of drag tail (in frames).
 %                       Optional. Default: 10 frames.
 %                       ** If dragtailLength = 0, then no dragtail.
@@ -94,8 +94,10 @@ function overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
 %                       using ImageMagick and ffmpeg. These options works
 %                       only under linux or mac.
 %                       Optional. Default: 'mov'.
-%       dt            : Interval between frames in seconds. If empty it defaults to frame
+%       DT            : Interval between frames in seconds. If empty it defaults to frame
 %                       number 
+%       IMrotate      : Rotate image 180 deg. Some movies need this...
+%                       Default: false 
 %
 %OUTPUT the movie.
 %
@@ -143,6 +145,8 @@ if nargin < 1
     disp('--overlayTracksMovieNew: Incorrect number of input arguments!');
     return
 end
+
+
 
 %ask user for images
 if nargin < 16 || isempty(firstImageFile)
@@ -220,6 +224,8 @@ frame2fileMap(indxNotZero) = frame2fileMap(indxNotZero) - frame2fileMap(indxNotZ
 
 %get number of frames in movie to be made
 numFramesMovie = diff(startend) + 1;
+
+
 
 %check whether an area of interest was input
 if nargin < 10 || isempty(imageRange)
@@ -325,14 +331,14 @@ if nargin < 20 || isempty(movieType)
 end
 
 dtLabel = ' sec';                       % If dt empty use frame units, and don't show
-if nargin < 21 || isempty(dt)           %  'sec'
-    dt = 1;
+if nargin < 21 || isempty(DT)           %  'sec'
+    DT = 1;
     dtLabel = [];
 end
 
-
-%define colors to loop through
-colorLoop = [1 0.7 0.7; 1 0 0; 0 1 0; 0 0 1; 1 1 0; 1 0 1; 0 1 1]; %colors: 'light pink',r,g,b,y,m,c
+if nargin < 22 || isempty(IMrotate)
+    IMrotate = false;
+end
 
 %% store track positions, get track status and point status
 
@@ -687,8 +693,8 @@ switch intensityScale
         for iFrame = 1 : size(xCoordMatAll,2)
             if frame2fileMap(iFrame) ~= 0
                 imageStack = double(imread(outFileList{frame2fileMap(iFrame)}));
-                %                 imageStack = imageStack(imageRange(2,1):imageRange(2,2),...
-                %                     imageRange(1,1):imageRange(1,2));
+%                 imageStack = imageStack(imageRange(2,1):imageRange(2,2),...
+%                     imageRange(1,1):imageRange(1,2));
                 imageStack = imageStack(imageRange(1,1):imageRange(1,2),...
                     imageRange(2,1):imageRange(2,2));
                 
@@ -705,8 +711,8 @@ switch intensityScale
         for iFrame = 1 : size(xCoordMatAll,2)
             if frame2fileMap(iFrame) ~= 0
                 imageStack = double(imread(outFileList{frame2fileMap(iFrame)}));
-                %                 imageStack = imageStack(imageRange(2,1):imageRange(2,2),...
-                %                     imageRange(1,1):imageRange(1,2));
+%                 imageStack = imageStack(imageRange(2,1):imageRange(2,2),...
+%                     imageRange(1,1):imageRange(1,2));
                 imageStack = imageStack(imageRange(1,1):imageRange(1,2),...
                     imageRange(2,1):imageRange(2,2));
                 minIntensity(iFrame) = min(imageStack(:));
@@ -749,6 +755,10 @@ for iFrame = 1 : numFramesMovie
     imageStack = imageStack(imageRange(1,1):imageRange(1,2),...
         imageRange(2,1):imageRange(2,2),:);
     
+    if IMrotate
+        imageStack = imrotate(imageStack, 180);
+    end
+    
     %     tmp = double(imageStack(:,:,1));
     %     minTmp = min(tmp(:));
     %     maxTmp = max(tmp(:));
@@ -762,10 +772,11 @@ for iFrame = 1 : numFramesMovie
     %     imageStack(:,:,2) = uint8(tmp*255);
     %     imageStack(:,:,3) = imageStack(:,:,2);
     
-    %plot image in current frame and show frame number
+    % Plot image in current frame and show frame number
+    % If image 
     if iFrame == 1
         axes('Position',[0 0 1 1]);
-        imshow(flipud(imageStack),intensityMinMax);
+        imshow(imageStack, intensityMinMax);
         text(10,200, 'Set desired image size and press any key',...
                 'Color','white','FontSize',18);
         pause
@@ -776,7 +787,7 @@ for iFrame = 1 : numFramesMovie
         case 1
             
             axes('Position',[0 0 0.495 1]);
-            imshow(flipud(imageStack),intensityMinMax);
+            imshow(imageStack ,intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
@@ -785,17 +796,17 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
+                textDeltaCoord,[num2str(DT*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0.505 0 0.495 1]);
-            imshow(flipud(imageStack),intensityMinMax);
+            imshow(imageStack ,intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
             
         case 2
             axes('Position',[0 0.505 1 0.495]);
-            imshow(flipud(imageStack),intensityMinMax);
+            imshow(imageStack , intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
@@ -804,16 +815,16 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
+                textDeltaCoord,[num2str(DT*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
             axes('Position',[0 0 1 0.495]);
-            imshow(flipud(imageStack),intensityMinMax);
+            imshow(imageStack , intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
         otherwise
             axes('Position',[0 0 1 1]);
-            imshow(flipud(imageStack),intensityMinMax);
+            imshow(imageStack, intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;
@@ -822,7 +833,7 @@ for iFrame = 1 : numFramesMovie
             %                 textDeltaCoord,num2str(iFrame+startend(1)-1),...
             %                 'Color','white','FontSize',18);
             text(textDeltaCoord,...
-                textDeltaCoord,[num2str(dt*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
+                textDeltaCoord,[num2str(DT*(iFrame+startend(1)-2),'%6.2f') dtLabel],...
                 'Color','white','FontSize',18);
     end
     

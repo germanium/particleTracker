@@ -1,11 +1,11 @@
 %OVERLAYTRACKSMOVIENEW overlays tracks obtained via trackCloseGapsKalman on movies with 
 % variable color-coding schemes
 %
-%SYNPOSIS overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
-%    saveMovie,movieName,filterSigma,classifyGaps,highlightES,showRaw,...
-%    imageRange,onlyTracks,classifyLft,diffAnalysisRes,intensityScale,...
-%    colorTracks,firstImageFile,dir2saveMovieminLength,plotFullScreen,...
-%    movieType,dt)
+%SYNPOSIS overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
+%     saveMovie, movieName, filterSigma, classifyGaps, highlightES,...
+%     showRaw, imageRange, onlyTracks, classifyLft, diffAnalysisRes,...
+%     intensityScale, colorTracks, firstImageFile, dir2saveMovie,...
+%     minLength, plotFullScreen, movieType, DT)
 %
 %INPUT  tracksFinal   : Output of trackCloseGapsKalman.
 %       startend      : Row vector indicating first and last frame to
@@ -90,18 +90,43 @@
 %                       using ImageMagick and ffmpeg. These options works
 %                       only under linux or mac.
 %                       Optional. Default: 'mov'.
-%       dt            : Interval between frames in seconds. If empty it defaults to frame
+%       DT            : Interval between frames in seconds. If empty it defaults to frame
 %                       number 
+%       IMrotate      : Rotate image 180 deg. Some movies need this...
 
 % If filename body has a number it must be separated. ie. can't be XX1001, can be XX1-001
 % Also, number has to start with 001 not 000
 % Run from within desired .tif folder 
 % I doesn't work for linux with avi and mov format. It works from mac
 
-TIFs = dir('*.tif');
-load('../tracksFinal.mat')
-DT = 0.15;                      % sec
-dragtailLength = 30;
 
-overlayTracksMovieNew(tracksFinal, [], dragtailLength, 1, 'movie', [], 0, 1, 0,[], ...
-     0, 1, [], 1, 1, [pwd '/' TIFs(1).name], [], 5,0,'mov', DT);
+tracksFinal = load('../tracksFinal.mat'); tracksFinal = tracksFinal.tracksFinal;
+startend = []; 
+dragtailLength = 100;           % Tail length in frames 
+saveMovie = 1;   
+movieName = 'movie';
+filterSigma = 0;
+classifyGaps = 1;
+highlightES = 1;
+showRaw = 0;
+imageRange = [];
+onlyTracks = 0;
+classifyLft = 1;
+diffAnalysisRes = [];
+intensityScale = 0;
+colorTracks = 1;
+firstImageFile = [pwd '/test0001.jpg'];
+dir2saveMovie = [];
+minLength = 5;
+plotFullScreen = 0;
+movieType = 'mov';
+DT = 1/30;                      % sec
+IMrotate = false;
+
+
+overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
+    saveMovie, movieName, filterSigma, classifyGaps, highlightES,...
+    showRaw, imageRange, onlyTracks, classifyLft, diffAnalysisRes,...
+    intensityScale, colorTracks, firstImageFile, dir2saveMovie,...
+    minLength, plotFullScreen, movieType, DT, IMrotate)
+
