@@ -1,5 +1,9 @@
 function movieVar = movieInfrastructure(whatToDo,movieType,dir2saveMovie,...
-    movieName,numFramesMovie,movieVar,iFrame)
+    movieName,numFramesMovie,movieVar,iFrame,fps)
+
+if nargin < 8 || isempty(fps)
+    fps = 10;
+end 
 
 switch whatToDo
     
@@ -18,7 +22,7 @@ switch whatToDo
         switch movieType
             case 'mov'
                 MakeQTMovie addfigure
-                MakeQTMovie('framerate',10);
+                MakeQTMovie('framerate',fps);
             case 'avi'
                 movieVar(iFrame) = getframe(gcf);
             case {'mp4_unix','avi_unix'}
@@ -42,12 +46,15 @@ switch whatToDo
             case 'mov'
                 MakeQTMovie finish
             case 'avi'
-                movie2avi(movieVar,fullfile(dir2saveMovie,movieName),'compression','None','fps',10)
+                movie2avi(movieVar,fullfile(dir2saveMovie,movieName),'compression',...
+                    'None','fps', fps)
             case {'mp4_unix','avi_unix'}
                 frameDir = [dir2saveMovie filesep 'tmpFramesMovie'];
                 ndigit = num2str(ceil(log10(numFramesMovie)));
                 ext = '.png';
-                cmd = ['ffmpeg -y -r 10 -i ' frameDir filesep 'frame_%0' ndigit 'd' ext ' -b 20M -r 10 ' fullfile(dir2saveMovie,movieName) '.' movieType(1:end-5)];
+                cmd = ['ffmpeg -y -r 10 -i ' frameDir filesep 'frame_%0' ndigit 'd' ...
+                    ext ' -b 20M -r 10 ' fullfile(dir2saveMovie,movieName) '.' ...
+                    movieType(1:end-5)];
                 system(cmd);
                 rmdir(frameDir,'s')
         end

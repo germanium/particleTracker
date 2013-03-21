@@ -2,7 +2,7 @@ function overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
     saveMovie, movieName, filterSigma, classifyGaps, highlightES,...
     showRaw, imageRange, onlyTracks, classifyLft, diffAnalysisRes,...
     intensityScale, colorTracks, firstImageFile, dir2saveMovie,...
-    minLength, plotFullScreen, movieType, DT, IMrotate)
+    minLength, plotFullScreen, movieType, DT, IMrotate, fps)
 %OVERLAYTRACKSMOVIENEW overlays tracks obtained via trackCloseGapsKalman on movies with variable color-coding schemes
 %
 %SYNPOSIS overlayTracksMovieNew(tracksFinal,startend,dragtailLength,...
@@ -98,6 +98,7 @@ function overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
 %                       number 
 %       IMrotate      : Rotate image 180 deg. Some movies need this...
 %                       Default: false 
+%       fps           : Frames per second of the resulting video. Default 10
 %
 %OUTPUT the movie.
 %
@@ -145,8 +146,6 @@ if nargin < 1
     disp('--overlayTracksMovieNew: Incorrect number of input arguments!');
     return
 end
-
-
 
 %ask user for images
 if nargin < 16 || isempty(firstImageFile)
@@ -338,6 +337,10 @@ end
 
 if nargin < 22 || isempty(IMrotate)
     IMrotate = false;
+end
+
+if nargin < 22 || isempty(fps)
+    fps = 10;
 end
 
 %% store track positions, get track status and point status
@@ -679,7 +682,7 @@ end
 if saveMovie
     movieVar = struct('cdata',[],'colormap',[]);
     movieVar = movieInfrastructure('initialize',movieType,dir2saveMovie,...
-        movieName,numFramesMovie,movieVar,[]);
+        movieName,numFramesMovie,movieVar,[], fps);
 end
 
 %go over all specified frames and find minimum and maximum intensity in all
@@ -1022,7 +1025,7 @@ for iFrame = 1 : numFramesMovie
     %add frame to movie if movie is saved
     if saveMovie
         movieVar = movieInfrastructure('addFrame',movieType,dir2saveMovie,...
-            movieName,numFramesMovie,movieVar,iFrame);
+            movieName,numFramesMovie,movieVar,iFrame, fps);
     end
     
     %pause for a moment to see frame
@@ -1033,7 +1036,7 @@ end %(for iFrame = 1 : numFramesMovie)
 %finish movie
 if saveMovie
     movieInfrastructure('finalize',movieType,dir2saveMovie,...
-        movieName,numFramesMovie,movieVar,[]);
+        movieName,numFramesMovie,movieVar,[], fps);
 end
 
 %% ~~~ end ~~~

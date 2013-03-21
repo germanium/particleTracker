@@ -93,6 +93,7 @@
 %       DT            : Interval between frames in seconds. If empty it defaults to frame
 %                       number 
 %       IMrotate      : Rotate image 180 deg. Some movies need this...
+%       fps           : Frames per second of the resulting video. Default 10
 
 % If filename body has a number it must be separated. ie. can't be XX1001, can be XX1-001
 % Also, number has to start with 001 not 000
@@ -122,11 +123,12 @@ plotFullScreen = 0;
 movieType = 'mov';
 DT = 1/30;                      % sec
 IMrotate = false;
+fps = 30;                       % Frames per second 
 
 
 overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
     saveMovie, movieName, filterSigma, classifyGaps, highlightES,...
     showRaw, imageRange, onlyTracks, classifyLft, diffAnalysisRes,...
     intensityScale, colorTracks, firstImageFile, dir2saveMovie,...
-    minLength, plotFullScreen, movieType, DT, IMrotate)
+    minLength, plotFullScreen, movieType, DT, IMrotate, 30)
 
