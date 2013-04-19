@@ -107,10 +107,11 @@ handles.tracksY = trackedFeatureInfo(:,2:8:end)';
 handles.times = times;
                 % First zoom includes the whole image
 handles.zoomxy = [1 1; handles.Isize(2) handles.Isize(1)];
-handles.trackStartRow = trackStartRow(end);         % matters if there are splitted tracks
+handles.trackStartRow = trackStartRow(end);   % Matters if there are splitted tracks
 handles.numSegments = numSegments(end);
                 % Plot trajectories 
 imshow(handles.I{1});
+hold on;
 
 guidata(hObject, handles);
 
@@ -118,21 +119,21 @@ guidata(hObject, handles);
 % --- Executes on slider movement.
 function slider1_Callback(hObject, ~, handles)
 
-frIx = round(get(hObject,'Value'));                          % Slider gives the time
-hold all
-imshow(handles.I{frIx});     % Max & min taken from 1st frame
+frIx = round(get(hObject,'Value'));                 % Slider gives the time
+cla;                        % To refresh faster
+imshow(handles.I{frIx});    % Max & min taken from 1st frame
 
 % Select plot area (zoom), take the max/min since the zoom square
 % can have different 1st and 2nd points
 set(gca, 'XLim', [min(handles.zoomxy(:,1)) max(handles.zoomxy(:,1))],...
     'YLim', [min(handles.zoomxy(:,2)) max(handles.zoomxy(:,2))])
 
-trackIx = find(handles.times(:,1) < frIx & ...              % Index of tracks that begin 
-               handles.times(:,2) > frIx)';                 %  before the slider position
-                                                            %  & and and after it.
+trackIx = find(handles.times(:,1) < frIx & ...      % Index of tracks that begin 
+               handles.times(:,2) > frIx)';         %  before the slider position
+                                                    %  & and and after it.
 for i = trackIx                                      
-    
-    obsAvail = find(~isnan(handles.tracksX(1:frIx,i)));    % Aca obtiene los gap intervals
+                                                    % Aca obtiene los gap intervals
+    obsAvail = find(~isnan(handles.tracksX(1:frIx,i)));     
                     % plot in dotted lines all non NaN points
     plot(handles.tracksX(obsAvail,i), handles.tracksY(obsAvail,i),'w:');
                     % Plot in colored line all points up to time t

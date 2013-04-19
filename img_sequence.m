@@ -62,7 +62,7 @@ guidata(hObject, handles);
 
 
 %% --- Executes on slider movement.
-function slider1_Callback(hObject, eventdata, handles)
+function slider1_Callback(hObject, ~, handles)
 
 fr = round(get(hObject,'Value'));           % Get slider position (current frame)
 htext = findall(0,'Tag','text1');           % Display frame #
@@ -223,12 +223,12 @@ elseif detPar.algo == 2             % Use multiscale products
                                     
 elseif detPar.algo == 3             % Detect macro object
     
-    detePar.minArea = str2double(get(handles.edit_detParam1, 'String'));
+    detPar.minArea = str2double(get(handles.edit_detParam1, 'String'));
     detPar.maxArea = str2double(get(handles.edit_detParam2, 'String'));
     detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
     
-    movieInfo = partDetector(handles.I, [detePar.minArea detePar.maxArea], ...
-        minEcce, true);
+    movieInfo = partDetector(handles.I, [detPar.minArea detPar.maxArea], ...
+        detPar.minEcce, true);
     
 end
 
