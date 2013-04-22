@@ -13,6 +13,7 @@ function batchTrack(pathList, detParam, trackParam, VERBOSE)
 % 
 % gP 10/31/2012
 
+
 PWD = pwd;
 if nargin < 1 || isempty(pathList)      % If didn't provide pathList prompt to select it
     pathList = uipickfiles('Prompt','Select *.dv movies');
@@ -33,13 +34,13 @@ if nargin < 4 || isempty(VERBOSE)
     VERBOSE = false;
 end
 
-dtMaxFr = round(1.5/detParam.DT);                % 1.5 seconds to frames
+tauAna = round(1.5/detParam.DT);       % Tau for analysis, 1.5 seconds to frames
 
 %% Cycle through movies 
 if VERBOSE
     tic;
 end
-parfor i=1:length(pathList);
+for i=1:length(pathList);
     
     movieInfo=[];  tracksFinal=[];
 %     clear java
@@ -72,10 +73,10 @@ parfor i=1:length(pathList);
 % -----------------------Analysis---------------------------------
     
     T = tracks2cell(tracksFinal);       
-    T_msd = msdMaxDt(T, detParam.DT, dtMaxFr, detParam.pxSize);
-    [D, alpha] = diffCoeff(T_msd,dtMaxFr,2);
+    T_msd = msdAtTau(T, tauAna, detParam.DT, detParam.pxSize);
+    [D, alpha] = diffCoeff(T_msd, tauAna, 2);
     DA = [D', alpha'];
-    DAmean = nanmean(DA,1);
+    DAmean = nanmean(DA, 1);
     
 % -----------------------Save Results------------------------------
 
@@ -132,9 +133,9 @@ for i=1:length(T)
 end
 
 
-function msd = msdMaxDt(T,DT,dtMaxFr,pxSize)
+function msd = msdAtTau(T, tauAna, DT, pxSize)
+% tauAna - Tau at which MSD is calculated. In frames
 % DT     - Time interval, in seconds
-% dtMax  - Max dt to calculate MSD, in seconds
 % pxSize - Pixel size in um
 
 Nt = length(T);                             % Number of walkers
@@ -142,9 +143,9 @@ msd = cell(1,Nt);
 
 for i = 1:Nt
     Np = size(T{i},1);
-    msd{i} = zeros(dtMaxFr,2);
+    msd{i} = zeros(tauAna,2);
     
-    for dt = 1:dtMaxFr                      % Time interval (Dt)
+    for dt = 1:tauAna                     % Time interval (Dt)
         
         lag = 1:(Np-dt);                    % Shift
                                             % Average of all shifted time windows of length dt

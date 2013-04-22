@@ -68,6 +68,7 @@ fr = round(get(hObject,'Value'));           % Get slider position (current frame
 htext = findall(0,'Tag','text1');           % Display frame #
 set(htext,'String',['Frame # ' num2str(fr)]);
 
+cla;
 imshow(handles.Idisp{fr});
 hold on
 if isfield(handles,'movieInfo')             % Only show detected points after detection
