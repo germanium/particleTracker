@@ -22,7 +22,7 @@ function varargout = img_sequence(varargin)
 
 % Edit the above text to modify the response to help img_sequence
 
-% Last Modified by GUIDE v2.5 20-Mar-2013 16:13:27
+% Last Modified by GUIDE v2.5 03-May-2013 17:51:21
 % *Notes*
 % 1) arreglar el gap closing en la imagen final
 
@@ -57,6 +57,9 @@ handles.fr = 1;                         % Starting frame
 addpath('~/Documents/MATLAB/figure_tools/',...
         '~/Documents/MATLAB/file_tools/',...
         '~/Documents/MATLAB/image_tools/')
+    
+
+detection_popup_Callback(0, 0, handles) 
 
 guidata(hObject, handles);
 
@@ -98,7 +101,7 @@ if ~iscell(ImgFileName)                     % If tif file is a movie
     
     Idisp = cell(Nfr,1);
     for i=1:Nfr                             % Increase contrast
-            Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+        Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
     end
         
     [~, handles.FileName] = fileparts(ImgFileName); 
@@ -108,10 +111,18 @@ else                                        % If each tif is a frame
     Nfr = length(ImgFileName);              % # of frames
     I = cell(Nfr,1);
     Idisp = cell(Nfr,1);
-    
-    for i=1:Nfr
-        I{i} = imread([ImgPathName,ImgFileName{i}]);
-        Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+    imInfo = imfinfo([ImgPathName,ImgFileName{1}]);
+                                            % Only load it as grayscale
+    if strcmpi(imInfo.ColorType, 'grayscale')
+        for i=1:Nfr
+            I{i} = imread([ImgPathName,ImgFileName{i}]);
+            Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+        end
+    else
+        for i=1:Nfr
+            I{i} = rgb2gray(imread([ImgPathName,ImgFileName{i}]));
+            Idisp{i} = imadjust(I{i}, stretchlim(I{i}, [0.01 0.995]));
+        end
     end
                                             % For 3 digits is -8
     handles.FileName = ImgFileName{1}(1:(end-7));   
@@ -227,9 +238,10 @@ elseif detPar.algo == 3             % Detect macro object
     detPar.minArea = str2double(get(handles.edit_detParam1, 'String'));
     detPar.maxArea = str2double(get(handles.edit_detParam2, 'String'));
     detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
+    detPar.PRCTILE = str2double(get(handles.edit_detParam4, 'String'));
     
     movieInfo = partDetector(handles.I, [detPar.minArea detPar.maxArea], ...
-        detPar.minEcce, true);
+        detPar.minEcce, detPar.PRCTILE, true);
     
 end
 
@@ -277,8 +289,10 @@ else
     minArea = str2double(get(handles.edit_detParam1, 'String'));
     maxArea = str2double(get(handles.edit_detParam2, 'String'));
     minEcce = str2double(get(handles.edit_detParam3, 'String'));
+    PRCTILE = str2double(get(handles.edit_detParam4, 'String'));
     
-    movieInfo = partDetector(handles.I(iF), [minArea maxArea], minEcce, true);
+    movieInfo = partDetector(handles.I(iF), [minArea maxArea], minEcce,...
+                             PRCTILE, true);
 end
 
 imshow(handles.Idisp{iF});
@@ -496,7 +510,7 @@ end
 
 
 % --- Executes on selection change in detection_popup.
-function detection_popup_Callback(hObject, ~, handles)
+function detection_popup_Callback(~, ~, handles)
 % hObject    handle to detection_popup (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
@@ -504,7 +518,7 @@ function detection_popup_Callback(hObject, ~, handles)
 % Hints: contents = cellstr(get(hObject,'String')) returns detection_popup contents as cell array
 %        contents{get(hObject,'Value')} returns selected item from detection_popup
 
-method = get(hObject,'Value');
+method = get(handles.detection_popup,'value');
 
 if method == 1              % DoG
     
@@ -520,6 +534,8 @@ if method == 1              % DoG
     set(handles.edit_detParam2, 'Visible', 'on')
     set(handles.text_detParam3, 'Visible', 'on')
     set(handles.edit_detParam3, 'Visible', 'on')
+    set(handles.text_detParam4, 'Visible', 'off')
+    set(handles.edit_detParam4, 'Visible', 'off')
 
 elseif method == 2          % Multiscale products
     
@@ -530,6 +546,8 @@ elseif method == 2          % Multiscale products
     set(handles.edit_detParam2, 'Visible', 'off')
     set(handles.text_detParam3, 'Visible', 'off')
     set(handles.edit_detParam3, 'Visible', 'off')
+    set(handles.text_detParam4, 'Visible', 'off')
+    set(handles.edit_detParam4, 'Visible', 'off')
 
 elseif method == 3          % Macro object
     
@@ -540,12 +558,14 @@ elseif method == 3          % Macro object
     set(handles.edit_detParam2, 'String', '500')
     set(handles.edit_detParam2, 'TooltipString', 'Biggest accepted spots, measured in pixels')
     set(handles.text_detParam3, 'String', 'Maximum eccentricity:')
-    set(handles.edit_detParam3, 'String', '0.5')
+    set(handles.edit_detParam3, 'String', '0.6')
     
     set(handles.text_detParam2, 'Visible', 'on')
     set(handles.edit_detParam2, 'Visible', 'on')
     set(handles.text_detParam3, 'Visible', 'on')
     set(handles.edit_detParam3, 'Visible', 'on')
+    set(handles.text_detParam4, 'Visible', 'on')
+    set(handles.edit_detParam4, 'Visible', 'on')
  
 end
 
@@ -624,3 +644,33 @@ function varargout = img_sequence_OutputFcn(hObject, eventdata, handles)
 
 % Get default command line output from handles structure
 varargout{1} = handles.output;
+
+
+
+function edit_detParam4_Callback(hObject, eventdata, handles)
+% hObject    handle to edit_detParam4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit_detParam4 as text
+%        str2double(get(hObject,'String')) returns contents of edit_detParam4 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit_detParam4_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit_detParam4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes when det_panel is resized.
+function det_panel_ResizeFcn(hObject, eventdata, handles)
+% hObject    handle to det_panel (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)

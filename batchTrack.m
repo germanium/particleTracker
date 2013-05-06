@@ -34,21 +34,20 @@ if nargin < 4 || isempty(VERBOSE)
     VERBOSE = false;
 end
 
-tauAna = round(1.5/detParam.DT);       % Tau for analysis, 1.5 seconds to frames
+tauAna = round(1.5/detParam.DT);        % Tau for analysis, 1.5 seconds to frames
 
 %% Cycle through movies 
 if VERBOSE
     tic;
 end
-for i=1:length(pathList);
+for iM=1:length(pathList);              % Go through movies
     
-    movieInfo=[];  tracksFinal=[];
-%     clear java
-    
-    [pathstr, movName] = fileparts(pathList{i});
+    [pathstr, movName] = fileparts(pathList{iM});
     cd(pathstr)
-    if isdir(movName)
-        error(['Folder' movName 'already exist'])
+    
+    if isdir(movName)                   % If folder exist skip it
+        disp(['Folder ' movName ' already exists, skipping...'])
+        continue
     else
         mkdir(movName)
         cd(movName)
@@ -57,10 +56,14 @@ for i=1:length(pathList);
     if VERBOSE
         fprintf(['\n--------Processing movie ' movName '--------\n\n'])
     end
-                                            
-    data = bfopen(pathList{i});                % Load data 
-    I = {data{1}{:,1}};
     
+    I = cell(length(imfinfo(pathList{iM})), 1);
+    for iFr=1:length(imfinfo(pathList{iM}))
+        I{iFr} = imread(pathList{iM}, iFr);
+    end
+%     data = bfopen(pathList{i});             % Load data 
+%     I = {data{1}{:,1}};
+%     jheapcl                                 % Clear java heap 
                                             % Detection     
     movieInfo = peakDetector(I, detParam.bitDepth, detParam.area,...
         detParam.ecce, VERBOSE);
@@ -81,33 +84,30 @@ for i=1:length(pathList);
 % -----------------------Save Results------------------------------
 
     if isempty(tracksFinal)                 % If no tracks
-        disp('No tracks detected to plot');
+        disp('No tracks detected to plot...');
     else
                                             % Plot trajectories
-        htracks = figure('Visible','off'); % OpenGL por hardware is faster
-        imagesc(imadjust(I{1}))
-        axis image off; colormap(gray(256))
+        im = I{1};
+        htracks = figure('Visible','off');
+        imagesc(imadjust(im));  axis image off;  colormap(gray(256))
         plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
         title(movName, 'Interpreter', 'none','FontSize',16)
-                                            % Save parameters 
+        print(htracks,'-dpng','-r200','Trajectories.png');
+        close(htracks)
+        % Save parameters
         Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
             ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
-        im = I{1};
-                                            % Don't overwrite if exists
-        if ~exist('tracksFinal.mat' ,'file')        
-            parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
-                DA, DAmean);
-            
-            DT = detParam.DT; pxSize = detParam.pxSize;
-            parsave('T.mat', T, DT, pxSize)
-                                            % Save to ascii
-%             parsave('D_and_alpha.txt', DA, '-ascii')
-%             parsave('mean_D_and_A.txt',DAmean, '-ascii')
-%             saveASCII(tracksFinal)             
+        
+        parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
+            DA, DAmean);
+        
+        DT = detParam.DT;  pxSize = detParam.pxSize;
+        parsave('T.mat', T, DT, pxSize)
+                                                % Save to ascii
+        %             parsave('D_and_alpha.txt', DA, '-ascii')
+        %             parsave('mean_D_and_A.txt',DAmean, '-ascii')
+        %             saveASCII(tracksFinal)
 
-            print(htracks,'-dpng','-r200','Trajectories.png');
-            close(htracks)
-        end
     end
 end
 

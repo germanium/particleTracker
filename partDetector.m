@@ -1,25 +1,34 @@
-function movieInfo = partDetector(I, area, maxEcce, VERBOSE)
-% movieInfo = partDetector(I,bitDepth,area, maxEcce, VERBOSE)
+function [movieInfo, featMask] = partDetector(I, area, maxEcce, PRCTILE, VERBOSE)
+% [movieInfo, featMask] = partDetector(I, area, maxEcce, PRCTILE, VERBOSE)
+% I       - Cell array containg one frame per cell. Must be gray scale
+% area    - 1x2 array [minArea maxArea]. Values in number of pixels. 
+%           Default [100 500]
+% maxEcce - Maximum eccentricity. Default 0.5
+% VERBOSE - Verbose flag
+% PRCTILE - Percentile to use in setting the threshold based on each
+%           frame histogram. If PRCTILE>50 it finds the values above threshold,
+%           else it find the values below threshold. This way it can take bright
+%           spots on a dark background and the opposite. Default 95%
+% movieInfo ~ Detected feature properties: movieInfo.xCoord..yCoord..amp..int. 
+%             Where amp is the area and int is the maximum intensity of detected 
+%             features.
+% featMask  ~ Mask of the detected features. It returns a cell array of sparse
+%             binary matrices. 
 %
-%
-
+% gP 02/2013
 
 if nargin < 2 || isempty(area)
-    area = [2 20];
-end
-
+    area = [100 500];  end
 if nargin < 3 || isempty(maxEcce)
-    maxEcce = 0.8;
-end
+    maxEcce = 0.5;  end
+if nargin < 4 || isempty(PRCTILE)
+    PRCTILE = 95; end
+if nargin < 5 
+    VERBOSE = true; end
 
-if nargin < 4 
-    VERBOSE = true;
-end
 
 Nfr = length(I);
 [h, w] = size(I{1});
-maxIntensity = max(I{1}(:));
-
 
 % START DETECTION
 
@@ -29,14 +38,20 @@ maxIntensity = max(I{1}(:));
 [movieInfo(1:Nfr,1).amp] = deal([]);
 [movieInfo(1:Nfr,1).int] = deal([]);
 
+featMask = cell(size(I));
+featMask(:) = {false(h,w)};
 
 if VERBOSE
     progressText(0,'Detecting Peaks');
 end
-
 for iF = 1:Nfr                   % Loop though frames and filter 
-                                 % Binary image with thr at half maxIntensity   
-    Ii = I{iF} > 0.5*maxIntensity;
+                                 % Binary image with thr at half maxIntensity 
+    thr = prctile(I{iF}(:), PRCTILE);
+    if PRCTILE > 50
+        Ii = I{iF} > thr;
+    else
+        Ii = I{iF} < thr;
+    end
     
     featProp = regionprops( Ii, 'PixelIdxList', 'Area', 'Eccentricity');
                                 % Sort through features and retain only 
@@ -47,9 +62,19 @@ for iF = 1:Nfr                   % Loop though frames and filter
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
 
     % make new label matrix and get props
-    featureMap = zeros(h,w);
-    featureMap(vertcat(featProp(goodFeatIdx,1).PixelIdxList)) = 1;
-    [featMapFinal,nFeats] = bwlabel(featureMap);
+    featMask{iF}(vertcat(featProp(goodFeatIdx,1).PixelIdxList)) = true;
+    [featMapFinal,nFeats] = bwlabel(featMask{iF});
+    
+    if nargout > 1                              % Fill gaps in mask
+        BWedge = edge(featMask{iF}, 'sobel');
+        se90 = strel('line', 2, 90);            % Dilete the image to connect
+        se0 = strel('line', 2, 0);              %  gaps on the edge
+        BWsdil = imdilate(BWedge, [se90 se0]);
+        BWfill = imfill(BWsdil, 'holes');       % Fill interior gaps
+        se = strel('disk',1);                   % Get rid of the border (1 px)
+        BWeroded = imerode(BWfill,se);
+        featMask{iF} = sparse(BWeroded);        % To save memory
+    end
     
     featPropFinal = regionprops(featMapFinal, Ii,...
         'PixelIdxList','Area','WeightedCentroid','MaxIntensity'); %'Extrema'
