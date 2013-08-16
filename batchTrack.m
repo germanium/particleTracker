@@ -9,12 +9,11 @@ function batchTrack(pathList, detParam, trackParam, VERBOSE)
 % trackParam - Has the fields required for u-track
 % VERBOSE    - Verbose output. Default false (for parallel)
 %
-% File tools and u-track_peakDetector have to be on the path
+% File tools and u-track_peakDetector have to be on the path. 
+% Saves results to /tracks on the folder on which the movies are
 % 
 % gP 10/31/2012
 
-
-PWD = pwd;
 if nargin < 1 || isempty(pathList)      % If didn't provide pathList prompt to select it
     pathList = uipickfiles('Prompt','Select *.dv movies');
     VERBOSE = true;
@@ -34,16 +33,26 @@ if nargin < 4 || isempty(VERBOSE)
     VERBOSE = false;
 end
 
-tauAna = round(1.5/detParam.DT);        % Tau for analysis, 1.5 seconds to frames
+PWD = pwd;
+MOVPATH = fileparts(pathList{1});
+TRACKSPATH = [MOVPATH '/../tracks'];    % One level below movies
+
+if isdir(TRACKSPATH)
+    cd(TRACKSPATH)
+else
+    mkdir(TRACKSPATH)
+    cd(TRACKSPATH)
+end
 
 %% Cycle through movies 
 if VERBOSE
     tic;
 end
+
 for iM=1:length(pathList);              % Go through movies
     
-    [pathstr, movName] = fileparts(pathList{iM});
-    cd(pathstr)
+    cd(TRACKSPATH)
+    [~, movName] = fileparts(pathList{iM});
     
     if isdir(movName)                   % If folder exist skip it
         disp(['Folder ' movName ' already exists, skipping...'])
@@ -53,16 +62,14 @@ for iM=1:length(pathList);              % Go through movies
         cd(movName)
     end
     
-    if VERBOSE
-        fprintf(['\n--------Processing movie ' movName '--------\n\n'])
-    end
-    
-    I = cell(length(imfinfo(pathList{iM})), 1);
-    for iFr=1:length(imfinfo(pathList{iM}))
-        I{iFr} = imread(pathList{iM}, iFr);
-    end
-%     data = bfopen(pathList{i});             % Load data 
-%     I = {data{1}{:,1}};
+    fprintf(['\n--------Processing movie ' movName '--------\n\n'])
+
+%     I = cell(length(imfinfo(pathList{iM})), 1);
+%     for iFr=1:length(imfinfo(pathList{iM}))
+%         I{iFr} = imread(pathList{iM}, iFr);
+%     end
+    data = bfopen(pathList{iM});             % Load data 
+    I = data{1}(:,1);
 %     jheapcl                                 % Clear java heap 
                                             % Detection     
     movieInfo = peakDetector(I, detParam.bitDepth, detParam.area,...
@@ -74,10 +81,10 @@ for iM=1:length(pathList);              % Go through movies
         trackParam.saveResults, VERBOSE);
     
 % -----------------------Analysis---------------------------------
-    
-    T = tracks2cell(tracksFinal);       
-    T_msd = msdAtTau(T, tauAna, detParam.DT, detParam.pxSize);
-    [D, alpha] = diffCoeff(T_msd, tauAna, 2);
+                                            
+    T = tracks2cell(tracksFinal);           % Only need 3 pts for diffCoeff2
+    T_msd = msdAtTau(T, 3, detParam.DT, detParam.pxSize);
+    [D, alpha] = diffCoeff2(T_msd, 2);
     DA = [D', alpha'];
     DAmean = nanmean(DA, 1);
     
@@ -85,30 +92,30 @@ for iM=1:length(pathList);              % Go through movies
 
     if isempty(tracksFinal)                 % If no tracks
         disp('No tracks detected to plot...');
-    else
-                                            % Plot trajectories
-        im = I{1};
-        htracks = figure('Visible','off');
-        imagesc(imadjust(im));  axis image off;  colormap(gray(256))
-        plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
-        title(movName, 'Interpreter', 'none','FontSize',16)
-        print(htracks,'-dpng','-r200','Trajectories.png');
-        close(htracks)
-        % Save parameters
-        Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
-            ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
-        
-        parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
-            DA, DAmean);
-        
-        DT = detParam.DT;  pxSize = detParam.pxSize;
-        parsave('T.mat', T, DT, pxSize)
-                                                % Save to ascii
-        %             parsave('D_and_alpha.txt', DA, '-ascii')
-        %             parsave('mean_D_and_A.txt',DAmean, '-ascii')
-        %             saveASCII(tracksFinal)
-
+        continue
     end
+                                            % Plot trajectories
+    im = I{1};
+    htracks = figure('Visible','off');
+    imagesc(imadjust(im));  axis image off;  colormap(gray(256))
+    plotTracks2D(tracksFinal, [], '3', [], 0, 0, [], [], 0);
+    title(movName, 'Interpreter', 'none','FontSize',16)
+    print(htracks,'-dpng','-r200','Trajectories.png');
+    close(htracks)
+                                        % Save parameters
+    Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
+        ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
+
+    parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
+        DA, DAmean);
+
+    DT = detParam.DT;  pxSize = detParam.pxSize;
+    parsave('T.mat', T, DT, pxSize)
+                                            % Save to ascii
+%     parsave('D_and_alpha.txt', DA, '-ascii')
+%     parsave('mean_D_and_A.txt',DAmean, '-ascii')
+%     saveASCII(tracksFinal)
+
 end
 
 if VERBOSE
