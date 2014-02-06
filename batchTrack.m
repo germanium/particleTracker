@@ -1,16 +1,27 @@
-function batchTrack(pathList, detParam, trackParam, VERBOSE)
-% batch_tracking(pathList, bitDepth, pxSize, DT, VERBOSE)
+function batchTrack(pathList, detParam, trackParam, VERBOSE, OVERWRITE)
+% batchTrack(pathList, detParam, trackParam, VERBOSE, OVERWRITE)
 % pathList   - Path list to the movies to proccess. Same format as the
 %              uipickfiles() output. If no input it will prompt to select movies.
-% detParam   - Has the fields
-%               bitDepth: Image bit depth. Default 16
-%               pxSize: Pixel size. Default 0.322 um (HIV movies)
-%               DT: Time between frames. Default 0.15 seconds (HIV movies)
+% detParam   - Has the fields:
+%               bitDepth - Image bit depth. Default 16
+%               pxSize - Pixel size. Default 0.322 um (HIV movies)
+%               DT - Time between frames. Default 0.15 seconds (HIV movies)
 % trackParam - Has the fields required for u-track
-% VERBOSE    - Verbose output. Default false (for parallel)
+% VERBOSE    - Verbose output, only affects the u-track program. Default false 
+% OVERWRITE  - Overwrite track folder if it exists, otherwise skipt it. Default
+%              false
+%
+% Outputs ~ It saves the following files to each movie folder:
+%           Trajectories.png - Image of the tracks
+%           tracksFinal.mat  - Containing tracksFinal, im, Tr_parameters, DA and
+%                              DAmean
+%           T.mat            - Containing T, DT, pxSize
 %
 % File tools and u-track_peakDetector have to be on the path. 
 % Saves results to /tracks on the folder on which the movies are
+%
+% TODO: Solve memory issue. Memory grows with each iteration until it crashes,
+% everything points to a leakage in the java memory. 
 % 
 % gP 10/31/2012
 
@@ -33,6 +44,10 @@ if nargin < 4 || isempty(VERBOSE)
     VERBOSE = false;
 end
 
+if nargin < 5 || isempty(OVERWRITE)
+    OVERWRITE = false;
+end
+
 PWD = pwd;
 MOVPATH = fileparts(pathList{1});
 TRACKSPATH = [MOVPATH '/../tracks'];    % One level below movies
@@ -49,17 +64,26 @@ if VERBOSE
     tic;
 end
 
-for iM=1:length(pathList);              % Go through movies
+parfor iM=1:length(pathList);              % Go through movies
     
     cd(TRACKSPATH)
     [~, movName] = fileparts(pathList{iM});
     
-    if isdir(movName)                   % If folder exist skip it
-        disp(['Folder ' movName ' already exists, skipping...'])
-        continue
+    if ~OVERWRITE
+        if isdir(movName)                   % If folder exist skip it
+            disp(['Folder ' movName ' already exists, skipping...'])
+            continue
+        else
+            mkdir(movName)
+            cd(movName)
+        end
     else
-        mkdir(movName)
-        cd(movName)
+        if isdir(movName)                   % If folder exist overwrite tracks
+            cd(movName)
+        else
+            mkdir(movName)
+            cd(movName)
+        end
     end
     
     fprintf(['\n--------Processing movie ' movName '--------\n\n'])
@@ -68,9 +92,8 @@ for iM=1:length(pathList);              % Go through movies
 %     for iFr=1:length(imfinfo(pathList{iM}))
 %         I{iFr} = imread(pathList{iM}, iFr);
 %     end
-    data = bfopen(pathList{iM});             % Load data 
+    data = bfopen(pathList{iM});          	% Load data 
     I = data{1}(:,1);
-%     jheapcl                                 % Clear java heap 
                                             % Detection     
     movieInfo = peakDetector(I, detParam.bitDepth, detParam.area,...
         detParam.ecce, VERBOSE);
@@ -115,7 +138,7 @@ for iM=1:length(pathList);              % Go through movies
 %     parsave('D_and_alpha.txt', DA, '-ascii')
 %     parsave('mean_D_and_A.txt',DAmean, '-ascii')
 %     saveASCII(tracksFinal)
-
+    
 end
 
 if VERBOSE
