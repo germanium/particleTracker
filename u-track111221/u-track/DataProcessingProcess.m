@@ -4,6 +4,25 @@ classdef DataProcessingProcess < Process
 %
 % Sebastien Besson 4/2011
 %
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
     methods (Access = public)
         
@@ -136,7 +155,7 @@ classdef DataProcessingProcess < Process
            iChan=ip.Results.iChan;
 
            %Makes sure there's at least one output file per channel
-           status =  arrayfun(@(x) exist(obj.outFilePaths_{1,x},'file'),iChan);
+           status =  arrayfun(@(x) ismember(exist(obj.outFilePaths_{1,x}),[2 7]),iChan); %#ok<EXIST>
         end
              
     end    

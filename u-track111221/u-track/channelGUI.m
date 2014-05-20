@@ -19,6 +19,25 @@ function varargout = channelGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help channelGUI
 
@@ -62,29 +81,25 @@ function channelGUI_OpeningFcn(hObject, ~, handles, varargin)
 % userData.helpFig - handle of help window
 %
 
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
+set(handles.text_copyright, 'String', getLCCBCopyright())
 
 userData = get(handles.figure1, 'UserData');
 % Choose default command line output for channelGUI
 handles.output = hObject;
 
 % Load help icon from dialogicons.mat
-load lccbGuiIcons.mat
+userData = loadLCCBIcons(userData);
 supermap(1,:) = get(hObject,'color');
 
 userData.colormap = supermap;
-userData.questIconData = questIconData;
 
 set(handles.figure1,'CurrentAxes',handles.axes_help);
-Img = image(questIconData);
+Img = image(userData.questIconData);
 set(hObject,'colormap',supermap);
 set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
     'visible','off');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-if openHelpFile
-    set(Img, 'UserData', struct('class', mfilename))
-end
+set(Img,'ButtonDownFcn',@icon_ButtonDownFcn,...
+    'UserData', struct('class', mfilename))
 
 if nargin > 3    
     if any(strcmp(varargin, 'mainFig'))
@@ -161,6 +176,14 @@ for i=1:numel(propNames)
     set(propHandle,guiProp,guiValue,'Enable',enableState);
 end
 
+% Display psf sigma if computed
+if ~isempty(userData.channels(userData.selectedChannel).psfSigma_),
+    set(handles.edit_psfSigma, 'String',...
+        userData.channels(userData.selectedChannel).psfSigma_);
+else
+    set(handles.edit_psfSigma, 'String', '');
+end
+
 % Update handles structure
 set(handles.figure1,'UserData',userData)
 guidata(hObject, handles);
@@ -222,6 +245,14 @@ for i=1:numel(propNames)
     set(propHandle,guiProp,guiValue,'Enable',enableState);
 end
 
+
+% Display psf sigma if present
+if ~isempty(userData.channels(userData.selectedChannel).psfSigma_),
+    set(handles.edit_psfSigma, 'String',...
+        userData.channels(userData.selectedChannel).psfSigma_);
+else
+    set(handles.edit_psfSigma, 'String', '');
+end
 
 set(handles.figure1,'UserData',userData)
 

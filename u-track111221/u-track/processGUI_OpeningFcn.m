@@ -5,7 +5,8 @@ function processGUI_OpeningFcn(hObject, eventdata, handles, string,varargin)
 %       userData.mainFig - handle to the main figure
 %       userData.handles_main - 'handles' of main figure
 %       userData.procID - The ID of process in the current package
-%       userData.MD - current movieData object
+%       userData.MD - current MovieData array
+%       userData.MD - current MovieList array
 %       userData.crtProc - current process
 %       userData.crtPackage - current package
 %       userData.crtProcClassName - current process class
@@ -16,6 +17,25 @@ function processGUI_OpeningFcn(hObject, eventdata, handles, string,varargin)
 %       userData.colormap - color map information
 %
 % Sebastien Besson May 2011
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Check input
 % The mainFig and procID should always be present
@@ -43,15 +63,17 @@ userData.crtProcClassName = ip.Results.procClassName;
 initChannel = ip.Results.initChannel;
 
 % Set up copyright statement
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
+set(handles.text_copyright, 'String', getLCCBCopyright());
 
 % Get current package, movie data and process
 userData.handles_main = guidata(userData.mainFig);
 userData_main = get(userData.mainFig, 'UserData');
-userData.MD = userData_main.MD(userData_main.id);
-if isa(userData.MD,'MovieList'),userData.ML=userData.MD; end
 userData.crtPackage = userData_main.crtPackage;
+if strcmp(userData.crtPackage.getMovieClass(), 'MovieData')
+    userData.MD = userData_main.MD(userData_main.id);
+else
+    userData.ML = userData_main.ML(userData_main.id);
+end
 
 % If constructor is not inherited from abstract class, read it from package
 if isempty(userData.procConstr)
@@ -85,8 +107,14 @@ userData.colormap = userData_main.colormap;
 % If process does not exist, create a default one in user data.
 if isempty(userData.crtProc)
     try
-        userData.crtProc = userData.procConstr(userData.MD, ...
-            userData.crtPackage.outputDirectory_);
+        movieClass = userData.crtPackage.getMovieClass();
+        if strcmp(movieClass,'MovieData')
+            userData.crtProc = userData.procConstr(userData.MD, ...
+                userData.crtPackage.outputDirectory_);
+        else
+            userData.crtProc = userData.procConstr(userData.ML, ...
+                userData.crtPackage.outputDirectory_);
+        end
     catch ME
         if ~isequal(ME.identifier,'MATLAB:class:MethodRestricted')
             rethrow(ME);
@@ -106,19 +134,20 @@ if isfield(handles,'checkbox_applytoall')
 end
 
 % ----------------------Set up help icon------------------------
-
+namestrcache = get(hObject, 'Name');
+if strcmp(namestrcache, ' Setting - Translocation Scoring') ~=1
 % Set up help icon
 set(hObject,'colormap',userData.colormap);
 % Set up package help. Package icon is tagged as '0'
-set(handles.figure1,'CurrentAxes',handles.axes_help);
+if isfield('axes_help', 'handles')
+    set(handles.figure1,'CurrentAxes',handles.axes_help);
 Img = image(userData.questIconData);
 set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
     'visible','off','YDir','reverse');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-if openHelpFile
-    set(Img, 'UserData', struct('class',userData.crtProcClassName))
+set(Img,'ButtonDownFcn',@icon_ButtonDownFcn,...
+    'UserData', struct('class',userData.crtProcClassName))
 end
-
+end
 % Update user data and GUI data
 set(hObject, 'UserData', userData);
 % ----------------------------------------------------------------
@@ -157,49 +186,9 @@ set(handles.listbox_selectedChannels,'String',channelString,...
 
 % Set default channels callback function
 set(handles.checkbox_all,'Callback',@(hObject,eventdata)...
-    checkallChannels(hObject,eventdata,guidata(hObject)));
+    checkallChannels_Callback(hObject,eventdata,guidata(hObject)));
 set(handles.pushbutton_select,'Callback',@(hObject,eventdata)...
-    selectChannel(hObject,eventdata,guidata(hObject)));
+    selectChannel_Callback(hObject,eventdata,guidata(hObject)));
 set(handles.pushbutton_delete,'Callback',@(hObject,eventdata)...
-    deleteChannel(hObject,eventdata,guidata(hObject)));
+    deleteChannel_Callback(hObject,eventdata,guidata(hObject)));
 
-% --- Executes on button press in checkbox_all.
-function checkallChannels(hObject, eventdata, handles)
-
-% Retrieve available channels properties
-availableProps = get(handles.listbox_availableChannels, {'String','UserData'});
-if isempty(availableProps{1}), return; end
-
-% Update selected channels
-if get(hObject,'Value')
-    set(handles.listbox_selectedChannels, 'String', availableProps{1},...
-        'UserData',availableProps{2});
-else
-    set(handles.listbox_selectedChannels, 'String', {}, 'UserData',[], 'Value',1);
-end
-
-% --- Executes on button press in pushbutton_select.
-function selectChannel(hObject, eventdata, handles)
-
-% Retrieve  channels properties
-availableProps = get(handles.listbox_availableChannels, {'String','UserData','Value'});
-selectedProps = get(handles.listbox_selectedChannels, {'String','UserData'});
-
-% Find new elements and set them to the selected listbox
-newID = availableProps{3}(~ismember(availableProps{1}(availableProps{3}),selectedProps{1}));
-selectedChannels = horzcat(selectedProps{1}',availableProps{1}(newID)');
-selectedData = horzcat(selectedProps{2}, availableProps{2}(newID));
-set(handles.listbox_selectedChannels, 'String', selectedChannels, 'UserData', selectedData);
-
-% --- Executes on button press in pushbutton_delete.
-function deleteChannel(hObject, eventdata, handles)
-
-% Get selected properties and returin if empty
-selectedProps = get(handles.listbox_selectedChannels, {'String','UserData','Value'});
-if isempty(selectedProps{1}) || isempty(selectedProps{3}),return; end
-
-% Delete selected item
-selectedProps{1}(selectedProps{3}) = [ ];
-selectedProps{2}(selectedProps{3}) = [ ];
-set(handles.listbox_selectedChannels, 'String', selectedProps{1},'UserData',selectedProps{2},...
-    'Value',max(1,min(selectedProps{3},numel(selectedProps{1}))));

@@ -1,11 +1,11 @@
-function [fileNames formatNum sNums] = imDir(imDirectory,returnAll)
+function [fileNames, formatNum, sNums] = imDir(imDirectory,returnAll)
 %IMDIR is a wrapper for the dir command designed for finding only image files
 % 
 % fileNames = imDir(directory);
 % 
 % fileNames = imDir(directory,returnAll);
 %
-% [fileNames formatNum] = imDir(...);
+% [fileNames formatNum sNums] = imDir(...);
 %
 % This function will find all files in the specified directory with common
 % file extensions for images. Additionally, the images will be re-ordered,
@@ -35,6 +35,8 @@ function [fileNames formatNum sNums] = imDir(imDirectory,returnAll)
 %       5 - .BMP 
 %       6 - .jpg
 %       7 - .JPG
+%       8 - .JP2
+%       9 - .JPX
 %
 %   This input is optional. Default is false.
 %
@@ -50,14 +52,32 @@ function [fileNames formatNum sNums] = imDir(imDirectory,returnAll)
 %
 % Hunter Elliott, 2/2010
 %
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %The list of supported file extensions. Feel free to add! (just update the
 %help also!)
-if ispc
-    %On PC, the dir command is non case-sensitive 
-    fExt = {'tif', 'stk', 'bmp', 'jpg'};
-else
-    fExt = {'tif','TIF','stk','STK','bmp','BMP','jpg','JPG'};
+fExt = {'tif', 'stk', 'bmp', 'jpg','jp2','jpx'};
+if ~ispc
+    % Add case-sensitivity under unix based platforms
+    fExt =  reshape(vertcat(fExt,upper(fExt)),1,2*numel(fExt));
 end
 
 

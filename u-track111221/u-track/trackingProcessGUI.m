@@ -19,10 +19,29 @@ function varargout = trackingProcessGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help trackingProcessGUI
 
-% Last Modified by GUIDE v2.5 13-Dec-2011 17:58:33
+% Last Modified by GUIDE v2.5 05-Mar-2012 18:28:45
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -66,8 +85,8 @@ set(handles.checkbox_merging, 'Value',ismember(funParams.gapCloseParam.mergeSpli
 set(handles.checkbox_splitting, 'Value',ismember(funParams.gapCloseParam.mergeSplit,[1 3]));
     
 % Set cost matrics
-defaultLinkingCostMat = TrackingProcess.getDefaultLinkingCostMatrices(userData.MD,5);
-defaultGapClosingCostMat = TrackingProcess.getDefaultGapClosingCostMatrices(userData.MD,5);
+defaultLinkingCostMat = userData.crtProc.getDefaultLinkingCostMatrices(userData.MD,funParams.gapCloseParam.timeWindow);
+defaultGapClosingCostMat = userData.crtProc.getDefaultGapClosingCostMatrices(userData.MD,funParams.gapCloseParam.timeWindow);
 userData.cost_linking = {defaultLinkingCostMat.funcName};
 userData.cost_gapclosing = {defaultGapClosingCostMat.funcName};
 userData.fun_cost_linking = {defaultLinkingCostMat.GUI};
@@ -77,38 +96,38 @@ userData.fun_cost_gap = {defaultGapClosingCostMat.GUI};
 i1 = find(strcmp(funParams.costMatrices(1).funcName, userData.cost_linking));
 i2 = find(strcmp(funParams.costMatrices(2).funcName, userData.cost_gapclosing));
 assert(isscalar(i1) && isscalar(i2),'User-defined: the length of matching methods must be 1.')
-u1 = cell(1, numel(defaultLinkingCostMat));
-u2 = cell(1,numel(defaultGapClosingCostMat));
+nLinking=numel(defaultLinkingCostMat);
+nGapClosing=numel(defaultGapClosingCostMat);
+u1 = cell(1,nLinking);
+u2 = cell(1,nGapClosing);
 u1{i1} = funParams.costMatrices(1).parameters;
 u2{i2} = funParams.costMatrices(2).parameters;
+for i=setdiff(1:nLinking,i1), u1{i}=defaultLinkingCostMat(i).parameters; end
+for i=setdiff(1:nGapClosing,i1), u2{i}=defaultGapClosingCostMat(i).parameters; end
 
 set(handles.popupmenu_linking, 'Value', i1, 'UserData', u1,...
     'String',{defaultLinkingCostMat.name})
 set(handles.popupmenu_gapclosing, 'Value', i2, 'UserData', u2,...
     'String',{defaultGapClosingCostMat.name})
 
-
 % Kalman functions
-userData.reserveMemFunctions = TrackingProcess.getKalmanReserveMemFunctions;
-userData.initializeFunctions = TrackingProcess.getKalmanInitializeFunctions;
-userData.calcGainFunctions = TrackingProcess.getKalmanCalcGainFunctions;
-userData.timeReverseFunctions = TrackingProcess.getKalmanTimeReverseFunctions;
+userData.kalmanFunctions = TrackingProcess.getKalmanFunctions;
+nKalmanFunctions = numel(userData.kalmanFunctions);
+kalmanFields = {'reserveMem','initialize','calcGain','timeReverse'};
 
-i1 = find(strcmp(funParams.kalmanFunctions.reserveMem, {userData.reserveMemFunctions.funcName}));
-i2 = find(strcmp(funParams.kalmanFunctions.initialize, {userData.initializeFunctions.funcName}));
-i3 = find(strcmp(funParams.kalmanFunctions.calcGain, {userData.calcGainFunctions.funcName}));
-i4 = find(strcmp(funParams.kalmanFunctions.timeReverse, {userData.timeReverseFunctions.funcName}));
+index=true(1,nKalmanFunctions);
+for i=1:numel(kalmanFields)
+    index=index & strcmp(funParams.kalmanFunctions.(kalmanFields{i}),...
+        {userData.kalmanFunctions.(kalmanFields{i})});
+end
 
-assert(isscalar(i1) && isscalar(i2) && isscalar(i3) && isscalar(i4),...
-    'User-defined: the length of matching methods must be 1.');
+assert(sum(index)==1, 'Did not find a unique Kalman set.');
 
-u2 = cell(1, numel(userData.initializeFunctions));
-u2{i2} = funParams.costMatrices(1).parameters.kalmanInitParam;
+u2 = cell(1,nKalmanFunctions);
+u2{index} = funParams.costMatrices(1).parameters.kalmanInitParam;
 
-set(handles.popupmenu_kalman_reserve, 'String', {userData.reserveMemFunctions.name}, 'Value', i1)
-set(handles.popupmenu_kalman_initialize,'String', {userData.initializeFunctions.name}, 'Value', i2, 'UserData', u2)
-set(handles.popupmenu_kalman_gain, 'String', {userData.calcGainFunctions.name}, 'Value', i3)
-set(handles.popupmenu_kalman_reverse,'String', {userData.timeReverseFunctions.name}, 'Value', i4)
+set(handles.popupmenu_kalmanFunctions,'UserData',u2,...
+    'String', {userData.kalmanFunctions.name}, 'Value', find(index))
 
 set(handles.checkbox_export, 'Value', funParams.saveResults.export)
 
@@ -207,19 +226,22 @@ funParams.costMatrices(2).funcName = userData.cost_gapclosing{i_gapclosing};
 funParams.costMatrices(2).parameters = u_gapclosing{i_gapclosing};
 
 % Get Kalman values
-props = get(handles.popupmenu_kalman_initialize, {'Value','UserData'});
-funParams.kalmanFunctions.initialize = userData.initializeFunctions(props{1}).funcName;
-funParams.costMatrices(1).parameters.kalmanInitParam = props{2}{props{1}};
-i = get(handles.popupmenu_kalman_reserve, 'Value');
-funParams.kalmanFunctions.reserveMem  = userData.reserveMemFunctions(i).funcName;
-i = get(handles.popupmenu_kalman_gain, 'Value');
-funParams.kalmanFunctions.calcGain    = userData.calcGainFunctions(i).funcName;
-i = get(handles.popupmenu_kalman_reverse, 'Value');
-funParams.kalmanFunctions.timeReverse = userData.timeReverseFunctions(i).funcName;
+iKalman = get(handles.popupmenu_kalmanFunctions, 'Value');
+kalmanFields = {'reserveMem','initialize','calcGain','timeReverse'};
+for i=1:numel(kalmanFields)
+    funParams.kalmanFunctions.(kalmanFields{i})=userData.kalmanFunctions(iKalman).(kalmanFields{i});
+end
+kalmanData = get(handles.popupmenu_kalmanFunctions, 'UserData');
+funParams.costMatrices(1).parameters.kalmanInitParam = kalmanData{iKalman};
 
 % Set up parameters effected by funParams.gapCloseParam.timeWindow
-funParams.costMatrices(2).parameters.brownStdMult = funParams.costMatrices(2).parameters.brownStdMult(1) * ones(funParams.gapCloseParam.timeWindow,1);
-funParams.costMatrices(2).parameters.linStdMult = funParams.costMatrices(2).parameters.linStdMult(1) * ones(funParams.gapCloseParam.timeWindow,1);
+if isfield(funParams.costMatrices(2).parameters,'brownStdMult'),
+    funParams.costMatrices(2).parameters.brownStdMult = funParams.costMatrices(2).parameters.brownStdMult(1) * ones(funParams.gapCloseParam.timeWindow,1);
+end
+
+if isfield(funParams.costMatrices(2).parameters,'linStdMult'),
+    funParams.costMatrices(2).parameters.linStdMult = funParams.costMatrices(2).parameters.linStdMult(1) * ones(funParams.gapCloseParam.timeWindow,1);
+end
 
 processGUI_ApplyFcn(hObject,eventdata,handles,funParams)
 
@@ -235,12 +257,14 @@ function pushbutton_set_linking_Callback(hObject, eventdata, handles)
 %       userData.kalmanFig
 
 userData = get(handles.figure1, 'UserData');
-procID = get(handles.popupmenu_linking, 'Value');
+parent = handles.popupmenu_linking;
+procID = get(parent, 'Value');
 if procID > length(userData.fun_cost_linking)
     warndlg('Please select a cost function for linking step.','Error','modal')
     return
 else
-    userData.linkingFig = userData.fun_cost_linking{procID}('mainFig', handles.figure1, procID);
+    settingGUI = userData.fun_cost_linking{procID};
+    userData.linkingFig = settingGUI(parent, procID);
 end
 set(handles.figure1, 'UserData', userData);
 
@@ -250,12 +274,14 @@ function pushbutton_set_gapclosing_Callback(hObject, eventdata, handles)
 %       userData.gapclosingFig - the handle of setting panel for gap closing set-up
 %       userData.kalmanFig
 userData = get(handles.figure1, 'UserData');
-procID = get(handles.popupmenu_gapclosing, 'Value');
+parent = handles.popupmenu_gapclosing;
+procID = get(parent, 'Value');
 if procID > length(userData.fun_cost_gap)
     warndlg('Please select a cost function for gap closing step.','Error','modal')
     return
 else
-    userData.gapclosingFig = userData.fun_cost_gap{procID}('mainFig', handles.figure1, procID);
+    settingGUI = userData.fun_cost_gap{procID};
+    userData.gapclosingFig = settingGUI(parent, procID);
 end
 set(handles.figure1, 'UserData', userData);
 
@@ -266,59 +292,60 @@ function edit_maxgap_Callback(hObject, eventdata, handles)
 maxgap = str2double(get(handles.edit_maxgap, 'String'));
 if isnan(maxgap) || maxgap < 0 || floor(maxgap) ~= ceil(maxgap)
     errordlg('Please provide a valid value to parameter "Maximum Gap to Close".','Warning','modal')
-
-else
-    timeWindow = maxgap + 1; % Retrieve the new value for the time window
-
-    % Retrieve the parameters of the linking and gap closing matrices
-    u_linking = get(handles.popupmenu_linking, 'UserData');
-    linkingID = get(handles.popupmenu_linking, 'Value');
-    linkingParameters = u_linking{linkingID};
-    u_gapclosing = get(handles.popupmenu_gapclosing, 'UserData');
-    gapclosingID = get(handles.popupmenu_gapclosing, 'Value');
-    gapclosingParameters = u_gapclosing{gapclosingID};
-
-    % Check for changes
-    linkingnnWindowChange=(linkingParameters.nnWindow~=timeWindow);
-    gapclosingnnWindowChange=(gapclosingParameters.nnWindow~=timeWindow);
-    gapclosingtimeReachConfBChange=(gapclosingParameters.timeReachConfB~=timeWindow);
-    gapclosingtimeReachConfLChange=(gapclosingParameters.timeReachConfL~=timeWindow);
-
-    if linkingnnWindowChange || gapclosingnnWindowChange ||...
-            gapclosingtimeReachConfBChange || gapclosingtimeReachConfLChange
-        % Optional: asks the user if the time window value should be propagated
-        % to the linking and gap closing matrics
-        modifyParameters=questdlg('Do you want to propagate the changes in the maximum number of gaps to close?',...
-           'Parameters update','Yes','No','Yes');
-        if strcmp(modifyParameters,'Yes')
-            % Save changes
-            linkingParameters.nnWindow=timeWindow;
-            gapclosingParameters.nnWindow=timeWindow;
-            gapclosingParameters.timeReachConfB=timeWindow;
-            gapclosingParameters.timeReachConfL=timeWindow;
-            
-            u_linking{linkingID} = linkingParameters;
-            u_gapclosing{gapclosingID} = gapclosingParameters;
-            
-            set(handles.popupmenu_linking, 'UserData', u_linking)
-            set(handles.popupmenu_gapclosing, 'UserData', u_gapclosing)
-            guidata(hObject,handles);
-        end
-    end
+    return;
 end
 
-% --- Executes on button press in pushbutton_set_kalman.
-function pushbutton_set_kalman_Callback(hObject, eventdata, handles)
+timeWindow = maxgap + 1; % Retrieve the new value for the time window
+
+% Retrieve the parameters of the linking and gap closing matrices
+u_linking = get(handles.popupmenu_linking, 'UserData');
+linkingID = get(handles.popupmenu_linking, 'Value');
+linkingParameters = u_linking{linkingID};
+u_gapclosing = get(handles.popupmenu_gapclosing, 'UserData');
+gapclosingID = get(handles.popupmenu_gapclosing, 'Value');
+gapclosingParameters = u_gapclosing{gapclosingID};
+
+% Check for changes
+linkingnnWindowChange=(linkingParameters.nnWindow~=timeWindow);
+gapclosingnnWindowChange=isfield(gapclosingParameters,'nnWindow') && (gapclosingParameters.nnWindow~=timeWindow);
+gapclosingtimeReachConfBChange=isfield(gapclosingParameters,'timeReachConfB') && (gapclosingParameters.timeReachConfB~=timeWindow);
+gapclosingtimeReachConfLChange=isfield(gapclosingParameters,'timeReachConfL') &&(gapclosingParameters.timeReachConfL~=timeWindow);
+
+if ~linkingnnWindowChange && ~gapclosingnnWindowChange && ...
+        ~gapclosingtimeReachConfBChange && ~gapclosingtimeReachConfLChange,
+    return;
+end
+% Optional: asks the user if the time window value should be propagated
+% to the linking and gap closing matrics
+modifyParameters=questdlg('Do you want to propagate the changes in the maximum number of gaps to close?',...
+    'Parameters update','Yes','No','Yes');
+if ~strcmp(modifyParameters,'Yes'), return; end
+
+
+% Set new linking time window
+if linkingnnWindowChange, linkingParameters.nnWindow=timeWindow; end
+u_linking{linkingID} = linkingParameters;
+set(handles.popupmenu_linking, 'UserData', u_linking)
+
+% Set new gap closing time window
+if gapclosingnnWindowChange, gapclosingParameters.nnWindow=timeWindow; end
+if gapclosingtimeReachConfBChange, gapclosingParameters.timeReachConfB=timeWindow; end
+if gapclosingtimeReachConfLChange, gapclosingParameters.timeReachConfL=timeWindow; end
+u_gapclosing{gapclosingID} = gapclosingParameters;
+set(handles.popupmenu_gapclosing, 'UserData', u_gapclosing)
+guidata(hObject,handles);
+
+
+% --- Executes on button press in pushbutton_kalman_initialize.
+function pushbutton_kalman_initialize_Callback(hObject, eventdata, handles)
 
 userData = get(handles.figure1, 'UserData');
-funcId = get(handles.popupmenu_kalman_initialize, 'Value');
+parent = handles.popupmenu_kalmanFunctions;
+id = get(parent, 'Value');
 
-if funcId > numel(userData.initializeFunctions)
-    warndlg('Please select an option in the drop-down menu.','Error','modal')
-    return
-else
-    userData.kalmanFig = userData.initializeFunctions(funcId).GUI('mainFig', handles.figure1, funcId);
-end
+settingGUI = userData.kalmanFunctions(id).initializeGUI;
+userData.kalmanFig = settingGUI(parent, id);
+
 set(handles.figure1, 'UserData', userData);
 
 % --- Executes on key press with focus on figure1 and none of its controls.

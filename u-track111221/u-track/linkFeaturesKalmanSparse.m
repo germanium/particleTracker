@@ -86,6 +86,25 @@ function [trackedFeatureIndx,trackedFeatureInfo,kalmanFilterInfo,...
 %        features at all. However, the very first frame must not be empty.
 %
 %Khuloud Jaqaman, March 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Output
 
@@ -272,6 +291,7 @@ else
 end
 prevCostStruct.all = prevCost;
 prevCostStruct.max = max(prevCost(:));
+prevCostStruct.allAux = [];
 
 %assign the lifetime of features in first frame
 featLifetime = ones(movieInfo(1).num,1);
@@ -280,20 +300,17 @@ featLifetime = ones(movieInfo(1).num,1);
 % % % numPotLinksPerFeature = [];
 
 %get number of particles in whole movie and calculate a worst-case scenario
-%number of tracks it can be that the final number of tracks is even larger than 
-%this worst case scenario. Every time the auxiliary matrices (defined below) run 
-%out of rows, another "numTracksWorstCase" rows are added to them.
-% It was 10, I changed it to 2 since in the case the number of features
-% in frame1 was 4 and in frame2 was 55 it gave me error. This affects movies 
-% where there are a lot of small trajectories and big difference in the number 
-% of features between frames. -gP
+%number of tracks
+%it can be that the final number of tracks is even larger than this worst
+%case scenario. Every time the auxiliary matrices (defined below) run out
+%of rows, another "numTracksWorstCase" rows are added to them.
 numTracksWorstCase = round(sum(numFeatures)/10);
 
 %initialize auxiliary matrices for storing information related to tracks
 %that end in the middle of the movie
-trackedFeatureIndxAux = zeros(numTracksWorstCase,numFrames,'single');    % THIS MATRICES TAKE A LOT 
-nnDistFeaturesAux = NaN(numTracksWorstCase,numFrames,'single');          % OF MEMORY
-prevCostAux = NaN(numTracksWorstCase,numFrames,'single');
+trackedFeatureIndxAux = zeros(numTracksWorstCase,numFrames);
+nnDistFeaturesAux = NaN(numTracksWorstCase,numFrames);
+prevCostAux = NaN(numTracksWorstCase,numFrames);
 rowEnd = numTracksWorstCase;
 
 %initialize progress display
@@ -327,7 +344,7 @@ for iFrame = 1 : numFrames-1
             if any(costMat(:)~=nonlinkMarker) %if there are potential links
 
                 %link features based on cost matrix, allowing for birth and death
-                [~,link21] = lap(costMat,nonlinkMarker,0);
+                [link12,link21] = lap(costMat,nonlinkMarker,0);
 
                 %get indices of features in 2nd frame that are connected to features in 1st frame
                 indx2C = find(link21(1:numFeaturesFrame2)<=numFeaturesFrame1);
@@ -344,11 +361,11 @@ for iFrame = 1 : numFrames-1
                 %extend auxiliary matrices if necessary
                 rowStart = rowEnd - numRows + 1;
                 if rowStart <= 1
-                    trackedFeatureIndxAux = [zeros(numTracksWorstCase,numFrames,'single'); ...
+                    trackedFeatureIndxAux = [zeros(numTracksWorstCase,numFrames); ...
                         trackedFeatureIndxAux];
-                    nnDistFeaturesAux = [NaN(numTracksWorstCase,numFrames,'single'); ...
+                    nnDistFeaturesAux = [NaN(numTracksWorstCase,numFrames); ...
                         nnDistFeaturesAux];
-                    prevCostAux = [NaN(numTracksWorstCase,numFrames,'single'); ...
+                    prevCostAux = [NaN(numTracksWorstCase,numFrames); ...
                         prevCostAux];
                     rowEnd = rowEnd + numTracksWorstCase;
                     rowStart = rowStart + numTracksWorstCase;
@@ -522,7 +539,7 @@ for iFrame = 1 : numFrames-1
             
         end %(if numFeaturesFrame2 ~= 0 ... else ...)
         
-    else %if there are no feature in 1st frame
+    else %if there are no features in 1st frame
         
         if numFeaturesFrame2 ~= 0 %if there are features in 2nd frame
             
@@ -581,6 +598,7 @@ for iFrame = 1 : numFrames-1
     %update structure of previous costs
     prevCostStruct.all = prevCost;
     prevCostStruct.max = max([prevCostStruct.max; prevCost(:,end)]);
+    prevCostStruct.allAux = prevCostAux;
     
     %display progress
     if verbose

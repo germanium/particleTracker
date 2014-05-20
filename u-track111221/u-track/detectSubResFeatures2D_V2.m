@@ -17,7 +17,7 @@ function [detectedFeatures,clustersMMF,imageN3,errFlag] = ...
 %             .alphaD: For distance test. Optional. Default: 0.05.
 %             .alphaF: Final residuals test, comparing residuals from final
 %                      fit to estimated background noise.
-%                      Optional. Default: 0.05.
+%                      Optional. Default: 0.
 %       visual     : 1 if user wants to view results; 0 otherwise.
 %                    Optional. Default: 0.
 %       doMMF      : 1 if user wants to do mixture-model fitting, 0
@@ -51,6 +51,25 @@ function [detectedFeatures,clustersMMF,imageN3,errFlag] = ...
 %       errFlag    : 0 if function executes normally, 1 otherwise.
 %
 %Khuloud Jaqaman, August 2005
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Output
 
@@ -100,7 +119,7 @@ else %if some were, check their values and assign default for the rest
         end
     end
     if ~isfield(testAlpha,'alphaF')
-        testAlpha.alphaF = 0.05;
+        testAlpha.alphaF = 0;
     else
         if testAlpha.alphaF < 0 || testAlpha.alphaF > 1
             disp('--detectSubResFeatures2D_V2: testAlpha.alphaF should be between 0 and 1!');
@@ -686,6 +705,8 @@ if ~isempty(indx)
             bgNoiseVar;
         
         %get p-value of test statistic
+        %THIS NEEDS CHECKING IF I EVER WANT TO USE IT AGAIN
+        %I THINK THE DEGREES OF FREEDOM ARE SWITCHED AROUND
         pValue = 1 - fcdf(testStat,numDegFree,numDegFree+3*size(clustersMMF(iCluster).bgAmp,1));
         
         %compare p-value to alpha
@@ -733,7 +754,9 @@ end
 if visual
     
     %make 3 layers out of original image (normalized)
-    imageNorm = image/max(image(:));
+    %     imageNorm = image/max(image(:));
+    imageNorm = image/prctile(image(:),99.9);
+    imageNorm(imageNorm>1) = 1;
     imageN3 = repmat(imageNorm,[1 1 3]);
     
     %place zeros in pixels of maxima from cands

@@ -19,6 +19,25 @@ function varargout = kalmanInitializationGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help kalmanInitializationGUI
 
@@ -46,79 +65,43 @@ end
 
 % --- Executes just before kalmanInitializationGUI is made visible.
 function kalmanInitializationGUI_OpeningFcn(hObject, eventdata, handles, varargin)
-% userData.gapclosingFig = kalmanInitializationGUI{procID}('mainFig', handles.figure1, procID);
-%
-% userData.mainFig
-% userData.procID
-% userData.handles_main
-% userData.userData_main
-% userData.crtProc
-% userData.parameters
 
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
 
-handles.output = hObject;
+costMat_OpeningFcn(hObject, eventdata, handles, varargin{:})
+userData = get(handles.figure1, 'UserData');
+parameters = userData.parameters;
+
 userData = get(handles.figure1, 'UserData');
 
 % Get main figure handle and process id
-t = find(strcmp(varargin,'mainFig'));
-userData.mainFig = varargin{t+1};
-userData.procID = varargin{t+2};
-userData.handles_main = guidata(userData.mainFig);
-userData.userData_main = get(userData.handles_main.figure1, 'UserData');
-userData.crtProc = userData.userData_main.crtProc;
-
 props = get(userData.handles_main.popupmenu_probDim, {'UserData','Value'});
 userData.probDim=props{1}(props{2});
-u = get(userData.handles_main.popupmenu_kalman_initialize, 'UserData');
-userData.kalmanInitParam = u{userData.procID};
-kalmanInitParam = userData.kalmanInitParam;
 
 % Parameter Setup
-if isempty(kalmanInitParam)
-    set(handles.radiobutton_none,'Value',1);
-else
-    if ~isempty(kalmanInitParam.initVelocity)% Initial Valocity Estimate
+set(handles.radiobutton_none,'Value',1);
+if ~isempty(parameters)
+    if ~isempty(parameters.initVelocity)% Initial Valocity Estimate
         for i=1:userData.probDim  
-            set(handles.(['edit_v_' num2str(i)]), 'String', kalmanInitParam.initVelocity(i));
+            set(handles.(['edit_v_' num2str(i)]), 'String', parameters.initVelocity(i));
         end
         
         set(handles.radiobutton_initVelocity, 'Value', 1); 
     end
         
-    if ~isempty(kalmanInitParam.convergePoint) % Reference Point for Initial Estimate
+    if ~isempty(parameters.convergePoint) % Reference Point for Initial Estimate
         for i=1:userData.probDim  
-            set(handles.(['edit_' num2str(i)]), 'String', kalmanInitParam.convergePoint(i));
+            set(handles.(['edit_' num2str(i)]), 'String', parameters.convergePoint(i));
         end
         
         set(handles.radiobutton_convergePoint, 'Value', 1);         
     end
     
-    set(handles.edit_radius, 'String', num2str(kalmanInitParam.searchRadiusFirstIteration))
-end
-
-% Get icon infomation
-userData.questIconData = userData.userData_main.questIconData;
-userData.colormap = userData.userData_main.colormap;
-
-% ----------------------Set up help icon------------------------
-
-% Set up help icon
-set(hObject,'colormap',userData.colormap);
-% Set up package help. Package icon is tagged as '0'
-set(handles.figure1,'CurrentAxes',handles.axes_help);
-Img = image(userData.questIconData); 
-set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
-    'visible','off','YDir','reverse');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-if openHelpFile
-    set(Img, 'UserData', struct('class', mfilename))
-else
-    set(Img, 'UserData', 'Please refer to help file.')
+    set(handles.edit_radius, 'String', num2str(parameters.searchRadiusFirstIteration))
 end
 
 
+
+handles.output = hObject;
 set(handles.figure1, 'UserData', userData)
 uipanel5_SelectionChangeFcn(hObject,eventdata,handles);
 
@@ -152,7 +135,7 @@ function pushbutton_done_Callback(hObject, eventdata, handles)
 
 
 userData = get(handles.figure1, 'UserData');
-kalmanInitParam = userData.kalmanInitParam;
+parameters = userData.parameters;
 
 initVelFlag=get(handles.radiobutton_initVelocity, 'Value');
 dimensions=1:userData.probDim;
@@ -191,17 +174,17 @@ else
 end
 
 if ~initVelFlag && ~convPointFlag && ~searchRadiusFlag
-    kalmanInitParam = [];
+    parameters = [];
 else
-    kalmanInitParam.initVelocity = initVelocity;
-    kalmanInitParam.convergePoint = convergePoint;
-    kalmanInitParam.searchRadiusFirstIteration = searchRadiusFirstIteration;
+    parameters.initVelocity = initVelocity;
+    parameters.convergePoint = convergePoint;
+    parameters.searchRadiusFirstIteration = searchRadiusFirstIteration;
 end
 
-u = get(userData.handles_main.popupmenu_kalman_initialize, 'UserData');
-u{userData.procID} = kalmanInitParam;
+u = get(userData.handles_main.popupmenu_kalmanFunctions, 'UserData');
+u{userData.procID} = parameters;
 
-set(userData.handles_main.popupmenu_kalman_initialize, 'UserData', u)   
+set(userData.handles_main.popupmenu_kalmanFunctions, 'UserData', u)   
 
 set(handles.figure1, 'UserData', userData);
 guidata(hObject,handles);

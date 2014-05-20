@@ -1,4 +1,7 @@
-% Copyright (C) 2011 LCCB 
+
+%% general gap closing parameters
+%
+% Copyright (C) 2014 LCCB 
 %
 % This file is part of u-track.
 % 
@@ -16,204 +19,130 @@
 % along with u-track.  If not, see <http://www.gnu.org/licenses/>.
 % 
 % 
-%% Detection results: movieInfo
-%
-%For a movie with N frames, movieInfo is a structure array with N entries.
-%Every entry has the fields xCoord, yCoord, zCoord (if 3D) and amp.
-%If there are M features in frame i, each one of these fields in
-%moveiInfo(i) will be an Mx2 array, where the first column is the value
-%(e.g. x-coordinate in xCoord and amplitude in amp) and the second column
-%is the standard deviation. If the uncertainty is unknown, make the second
-%column all zero.
-%
-%This is the automatic output of detectSubResFeatures2D_StandAlone, which
-%is called via the accompanying "scriptDetectGeneral"
+gapCloseParam.timeWindow = 7; %maximum allowed time gap (in frames) between a track segment end and a track segment start that allows linking them.
+gapCloseParam.mergeSplit = 1; %1 if merging and splitting are to be considered, 2 if only merging is to be considered, 3 if only splitting is to be considered, 0 if no merging or splitting are to be considered.
+gapCloseParam.minTrackLen = 2; %minimum length of track segments from linking to be used in gap closing.
 
-%--------------------------------------------------------------------------
+%optional input:
+gapCloseParam.diagnostics = 0; %1 to plot a histogram of gap lengths in the end; 0 or empty otherwise.
 
-%% Cost functions
+%% cost matrix for frame-to-frame linking
 
-%Frame-to-frame linking
+%function name
 costMatrices(1).funcName = 'costMatRandomDirectedSwitchingMotionLink';
 
-%Gap closing, merging and splitting
-costMatrices(2).funcName = 'costMatRandomDirectedSwitchingMotionCloseGaps';
+%parameters
 
-%--------------------------------------------------------------------------
+parameters.linearMotion = 0; %use linear motion Kalman filter.
 
-%% Kalman filter functions
+parameters.minSearchRadius = 2; %minimum allowed search radius. The search radius is calculated on the spot in the code given a feature's motion parameters. If it happens to be smaller than this minimum, it will be increased to the minimum.
+parameters.maxSearchRadius = 4.5; %maximum allowed search radius. Again, if a feature's calculated search radius is larger than this maximum, it will be reduced to this maximum.
+parameters.brownStdMult = 3; %multiplication factor to calculate search radius from standard deviation.
 
-%Memory reservation
-kalmanFunctions.reserveMem = 'kalmanResMemLM';
+parameters.useLocalDensity = 1; %1 if you want to expand the search radius of isolated features in the linking (initial tracking) step.
+parameters.nnWindow = gapCloseParam.timeWindow; %number of frames before the current one where you want to look to see a feature's nearest neighbor in order to decide how isolated it is (in the initial linking step).
 
-%Filter initialization
-kalmanFunctions.initialize = 'kalmanInitLinearMotion';
+parameters.kalmanInitParam = []; %Kalman filter initialization parameters.
+% parameters.kalmanInitParam.searchRadiusFirstIteration = 10; %Kalman filter initialization parameters.
 
-%Gain calculation based on linking history
-kalmanFunctions.calcGain = 'kalmanGainLinearMotion';
+%optional input
+parameters.diagnostics = []; %if you want to plot the histogram of linking distances up to certain frames, indicate their numbers; 0 or empty otherwise. Does not work for the first or last frame of a movie.
 
-%Time reversal for second and third rounds of linking
-kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
-
-%--------------------------------------------------------------------------
-
-%% General tracking parameters
-
-%Gap closing time window
-gapCloseParam.timeWindow = 6;
-
-%Flag for merging and splitting
-gapCloseParam.mergeSplit = 1;
-
-%Minimum track segment length used in the gap closing, merging and
-%splitting step
-gapCloseParam.minTrackLen = 2;
-
-%Time window diagnostics: 1 to plot a histogram of gap lengths in
-%the end of tracking, 0 or empty otherwise
-gapCloseParam.diagnostics = 1;
-
-%--------------------------------------------------------------------------
-
-%% Cost function specific parameters: Frame-to-frame linking
-
-%Flag for linear motion
-parameters.linearMotion = 2;
-
-%Search radius lower limit
-parameters.minSearchRadius = 2;
-
-%Search radius upper limit
-parameters.maxSearchRadius = 5;
-
-%Standard deviation multiplication factor
-parameters.brownStdMult = 3;
-
-%Flag for using local density in search radius estimation
-parameters.useLocalDensity = 1;
-
-%Number of past frames used in nearest neighbor calculation
-parameters.nnWindow = gapCloseParam.timeWindow;
-
-%Optional input for diagnostics: To plot the histogram of linking distances
-%up to certain frames. For example, if parameters.diagnostics = [2 35],
-%then the histogram of linking distance between frames 1 and 2 will be
-%plotted, as well as the overall histogram of linking distance for frames
-%1->2, 2->3, ..., 34->35. The histogram can be plotted at any frame except
-%for the first and last frame of a movie.
-%To not plot, enter 0 or empty
-parameters.diagnostics = [2 39];
-
-%Store parameters for function call
 costMatrices(1).parameters = parameters;
 clear parameters
 
-%--------------------------------------------------------------------------
+%% cost matrix for gap closing
 
-%% Cost function specific parameters: Gap closing, merging and splitting
+%function name
+costMatrices(2).funcName = 'costMatRandomDirectedSwitchingMotionCloseGaps';
 
-%Same parameters as for the frame-to-frame linking cost function
-parameters.linearMotion = costMatrices(1).parameters.linearMotion;
-parameters.useLocalDensity = costMatrices(1).parameters.useLocalDensity;
-parameters.minSearchRadius = costMatrices(1).parameters.minSearchRadius;
-parameters.maxSearchRadius = costMatrices(1).parameters.maxSearchRadius;
-parameters.brownStdMult = costMatrices(1).parameters.brownStdMult*ones(gapCloseParam.timeWindow,1);
-parameters.nnWindow = costMatrices(1).parameters.nnWindow;
+%parameters
 
-%Formula for scaling the Brownian search radius with time.
-parameters.brownScaling = [0.5 0.01]; %power for scaling the Brownian search radius with time, before and after timeReachConfB (next parameter).
-parameters.timeReachConfB = 4; %before timeReachConfB, the search radius grows with time with the power in brownScaling(1); after timeReachConfB it grows with the power in brownScaling(2).
+%needed all the time
+parameters.linearMotion = 0; %use linear motion Kalman filter.
 
-%Amplitude ratio lower and upper limits
-parameters.ampRatioLimit = [0.7 4];
+parameters.minSearchRadius = 2; %minimum allowed search radius.
+parameters.maxSearchRadius = 4.5; %maximum allowed search radius.
+parameters.brownStdMult = 3*ones(gapCloseParam.timeWindow,1); %multiplication factor to calculate Brownian search radius from standard deviation.
 
-%Minimum length (frames) for track segment analysis
-parameters.lenForClassify = 5;
+parameters.brownScaling = [0.25 0.01]; %power for scaling the Brownian search radius with time, before and after timeReachConfB (next parameter).
+% parameters.timeReachConfB = 3; %before timeReachConfB, the search radius grows with time with the power in brownScaling(1); after timeReachConfB it grows with the power in brownScaling(2).
+parameters.timeReachConfB = gapCloseParam.timeWindow; %before timeReachConfB, the search radius grows with time with the power in brownScaling(1); after timeReachConfB it grows with the power in brownScaling(2).
 
-%Standard deviation multiplication factor along preferred direction of
-%motion
-parameters.linStdMult = 3*ones(gapCloseParam.timeWindow,1);
+parameters.ampRatioLimit = [0.7 4]; %for merging and splitting. Minimum and maximum ratios between the intensity of a feature after merging/before splitting and the sum of the intensities of the 2 features that merge/split.
 
-%Formula for scaling the linear search radius with time.
-parameters.linScaling = [0.5 0.01]; %power for scaling the linear search radius with time (similar to brownScaling).
+parameters.lenForClassify = 5; %minimum track segment length to classify it as linear or random.
+
+parameters.useLocalDensity = 0; %1 if you want to expand the search radius of isolated features in the gap closing and merging/splitting step.
+parameters.nnWindow = gapCloseParam.timeWindow; %number of frames before/after the current one where you want to look for a track's nearest neighbor at its end/start (in the gap closing step).
+
+parameters.linStdMult = 1*ones(gapCloseParam.timeWindow,1); %multiplication factor to calculate linear search radius from standard deviation.
+
+parameters.linScaling = [0.25 0.01]; %power for scaling the linear search radius with time (similar to brownScaling).
+% parameters.timeReachConfL = 4; %similar to timeReachConfB, but for the linear part of the motion.
 parameters.timeReachConfL = gapCloseParam.timeWindow; %similar to timeReachConfB, but for the linear part of the motion.
 
-%Maximum angle between the directions of motion of two linear track
-%segments that are allowed to get linked
-parameters.maxAngleVV = 30;
+parameters.maxAngleVV = 30; %maximum angle between the directions of motion of two tracks that allows linking them (and thus closing a gap). Think of it as the equivalent of a searchRadius but for angles.
 
-%Gap length penalty (disappearing for n frames gets a penalty of
-%gapPenalty^n)
-%Note that a penalty = 1 implies no penalty, while a penalty < 1 implies
-%that longer gaps are favored
-parameters.gapPenalty = 1.5;
+%optional; if not input, 1 will be used (i.e. no penalty)
+parameters.gapPenalty = 1.5; %penalty for increasing temporary disappearance time (disappearing for n frames gets a penalty of gapPenalty^n).
 
-%Resolution limit in pixels, to be used in calculating the merge/split search radius
-%Generally, this is the Airy disk radius, but it can be smaller when
-%iterative Gaussian mixture-model fitting is used for detection
-parameters.resLimit = 3.4;
+%optional; to calculate MS search radius
+%if not input, MS search radius will be the same as gap closing search radius
+parameters.resLimit = []; %resolution limit, which is generally equal to 3 * point spread function sigma.
 
-%Store parameters for function call
 costMatrices(2).parameters = parameters;
 clear parameters
 
-%--------------------------------------------------------------------------
+%% Kalman filter function names
+
+kalmanFunctions.reserveMem  = 'kalmanResMemLM';
+kalmanFunctions.initialize  = 'kalmanInitLinearMotion';
+kalmanFunctions.calcGain    = 'kalmanGainLinearMotion';
+kalmanFunctions.timeReverse = 'kalmanReverseLinearMotion';
 
 %% additional input
 
 %saveResults
-saveResults.dir = '???/example/analysisCommandLine/'; %directory where to save input and output
-saveResults.filename = 'testTracking.mat'; %name of file where input and output are saved
+saveResults.dir = 'C:\kjData\Galbraiths\data\alphaVY773AandCellEdge\131202\analysisAlphaVY773A\'; %directory where to save input and output
+% saveResults.filename = 'tracksTest1DetectionAll1.mat'; %name of file where input and output are saved
 % saveResults = 0; %don't save results
 
-%verbose
+%verbose state
 verbose = 1;
 
 %problem dimension
 probDim = 2;
 
-%--------------------------------------------------------------------------
-
 %% tracking function call
 
-[tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(movieInfo,...
-    costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
+% [tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(movieInfo(1:300),...
+%     costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
 
-%--------------------------------------------------------------------------
+% for i = 1 : 12
+for i = 1
+    movieInfoTmp((i-1)*1200+1:i*1200) = movieInfo((i-1)*1200+1:i*1200);
+    saveResults.filename = ['tracks1All_' sprintf('%02i',i) '.mat'];
+    [tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(movieInfoTmp,...
+        costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
+    clear movieInfoTmp
+end
 
-%% Output variables
-
-%The important output variable is tracksFinal, which contains the tracks
-
-%It is a structure array where each element corresponds to a compound
-%track. Each element contains the following fields:
-%           .tracksFeatIndxCG: Connectivity matrix of features between
-%                              frames, after gap closing. Number of rows
-%                              = number of track segments in compound
-%                              track. Number of columns = number of frames
-%                              the compound track spans. Zeros indicate
-%                              frames where track segments do not exist
-%                              (either because those frames are before the
-%                              segment starts or after it ends, or because
-%                              of losing parts of a segment.
-%           .tracksCoordAmpCG: The positions and amplitudes of the tracked
-%                              features, after gap closing. Number of rows
-%                              = number of track segments in compound
-%                              track. Number of columns = 8 * number of
-%                              frames the compound track spans. Each row
-%                              consists of
-%                              [x1 y1 z1 a1 dx1 dy1 dz1 da1 x2 y2 z2 a2 dx2 dy2 dz2 da2 ...]
-%                              NaN indicates frames where track segments do
-%                              not exist, like the zeros above.
-%           .seqOfEvents     : Matrix with number of rows equal to number
-%                              of events happening in a track and 4
-%                              columns:
-%                              1st: Frame where event happens;
-%                              2nd: 1 - start of track, 2 - end of track;
-%                              3rd: Index of track segment that ends or starts;
-%                              4th: NaN - start is a birth and end is a death,
-%                                   number - start is due to a split, end
-%                                   is due to a merge, number is the index
-%                                   of track segment for the merge/split.
+% i=6;
+% movieInfoTmp((i-1)*1200+1:6800) = movieInfo((i-1)*1200+1:6800);
+% saveResults.filename = ['tracks1All_' sprintf('%02i',i) '.mat'];
+% [tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(movieInfoTmp,...
+%     costMatrices,gapCloseParam,kalmanFunctions,probDim,saveResults,verbose);
+% clear movieInfoTmp
 
 
+% for startFrame = 1 : 400 : 48000
+%     endFrame = startFrame + 399;
+%     saveResults.filename = ['tracks2Detection1_Frames' sprintf('%05i',startFrame) 'to' sprintf('%05i',endFrame) '.mat'];
+%     disp(startFrame)
+%     [tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(...
+%         movieInfo(startFrame:endFrame),costMatrices,gapCloseParam,...
+%         kalmanFunctions,probDim,saveResults,verbose);
+% end
+
+%% ~~~ the end ~~~

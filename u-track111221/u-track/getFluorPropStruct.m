@@ -1,5 +1,24 @@
 % Values from http://www.olympusfluoview.com/applications/fpcolorpalette.html
 % Alexa Fluors: http://www.invitrogen.com/site/us/en/home/References/Molecular-Probes-The-Handbook/Technical-Notes-and-Product-Highlights/The-Alexa-Fluor-Dye-Series.html
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Francois Aguet, October 2010
 
@@ -41,9 +60,22 @@ s(17).name = 'texasred';
 s(17).lambda_em = 615e-9;
 s(18).name = 'alexa647';
 s(18).lambda_em = 665e-9;
-s(18).name = 'fluosphere605';
-s(18).lambda_em = 605e-9;
 s(19).name = 'cy3';
 s(19).lambda_em = 570e-9;
 s(20).name = 'cy5';
 s(20).lambda_em = 670e-9;
+s(21).name = 'alexa594';
+s(21).lambda_em = 617e-9;
+s(22).name = 'dapi';
+s(22).lambda_em = 470e-9;
+s(23).name = 'fluosphere605';
+s(23).lambda_em = 605e-9;
+s(24).name = 'meos';
+s(24).lambda_em = 563e-9;
+s(25).name = 'turborfp';
+s(25).lambda_em = 574e-9;
+s(26).name = 'mruby2';
+s(26).lambda_em = 600e-9;
+
+[~,i] = sort([s.lambda_em]);
+s = s(i);

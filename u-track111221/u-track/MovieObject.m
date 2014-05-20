@@ -1,20 +1,51 @@
 classdef  MovieObject < hgsetget
-    % Interface defining movie analyis tools
+    % Abstract interface defining the analyis tools for movie objects
+    % (movies, movie lists...)
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+    
+    % Sebastien Besson, Jan 2012
     
     properties (SetAccess = protected)
-        createTime_             % Time movie object is created
-        processes_ = {};        % Process object cell array
-        packages_ = {};         % Package object cell array
+        createTime_             % Object creation time
+        processes_ = {};        % Cell array of process objects
+        packages_ = {};         % Cell array of process packaged
     end
     
     properties
         outputDirectory_  ='';      % Default output directory for all processes
         notes_                  % User's notes
+        
+        % For OMERO objects
+        omeroId_
+        omeroSave_ = false
+    end
+    
+    properties (Transient =true)
+        omeroSession_
     end
     
     methods
         %% Set/get methods
         function set.outputDirectory_(obj, path)
+            % Set the ouput
             endingFilesepToken = [regexptranslate('escape',filesep) '$'];
             path = regexprep(path,endingFilesepToken,'');
             obj.checkPropertyValue('outputDirectory_',path);
@@ -27,35 +58,109 @@ classdef  MovieObject < hgsetget
             % Test if the property is unchanged
             if isequal(obj.(property),value), return; end
             
-            if  ~isempty(obj.(property)),
-                % Test if the property is writable
-                if ~obj.checkProperty(property)
-                    propertyName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
-                    error(['The ' propertyName ' has been set previously and cannot be changed!']);
-                end
-            end
+            propName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
+            % Test if the property is writable
+            assert(obj.checkProperty(property),'lccb:set:readonly',...
+                ['The ' propName ' has been set previously and cannot be changed!']);
             
-            % Test if the value is valid
-            if ~obj.checkValue(property,value);
-                propertyName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
-                error(['The supplied ' propertyName ' is invalid!']);
-            end
+            % Test if the supplied value is valid
+            assert(obj.checkValue(property,value),'lccb:set:invalid',...
+                ['The supplied ' propName ' is invalid!']);
+        end
+        
+        function status = checkProperty(obj,property)
+            % Returns true/false if the non-empty property is writable
+            status = isempty(obj.(property));
+            if status, return; end
             
+            % Allow user to rewrite on some properties (paths, outputDirectory, notes)
+            switch property
+                case {'notes_'};
+                    status = true;
+                case {'outputDirectory_',obj.getPathProperty,obj.getFilenameProperty};
+                    stack = dbstack;
+                    if any(cellfun(@(x)strcmp(x,[class(obj) '.sanityCheck']),{stack.name})),
+                        status  = true;
+                    end
+            end
         end
         
         function set.notes_(obj, value)
-            obj.checkPropertyValue('notes_',path);
+            obj.checkPropertyValue('notes_',value);
             obj.notes_=value;
         end
         
+        function value = getPath(obj)
+            value = obj.(obj.getPathProperty);
+        end
         
+        function setPath(obj, value)
+            obj.(obj.getPathProperty) = value;
+        end
+        
+        function value = getFilename(obj)
+            value = obj.(obj.getFilenameProperty);
+        end
+        
+        function setFilename(obj, value)
+            obj.(obj.getFilenameProperty) = value;
+        end
+        
+        function fullPath = getFullPath(obj, askUser)
+            % Return full path of the movie object
+            
+            if nargin < 2, askUser = true; end
+            hasEmptyComponent = isempty(obj.getPath) || isempty(obj.getFilename);
+            hasDisplay = feature('ShowFigureWindows');
+            
+            if any(hasEmptyComponent) && askUser && hasDisplay
+                if ~isempty(obj.getPath),
+                    defaultDir = obj.getPath;
+                elseif ~isempty(obj.outputDirectory_)
+                    defaultDir = obj.outputDirectory_;
+                else
+                    defaultDir = pwd;
+                end
+                
+                % Open a dialog box asking where to save the movie object
+                movieClass = class(obj);
+                objName = regexprep(movieClass,'([A-Z])',' ${lower($1)}');
+                defaultName = regexprep(movieClass,'(^[A-Z])','${lower($1)}');
+                [filename,path] = uiputfile('*.mat',['Find a place to save your' objName],...
+                    [defaultDir filesep defaultName '.mat']);
+                
+                if ~any([filename,path]),
+                    fullPath=[];
+                else
+                    fullPath = [path, filename];
+                    % Set new path and filename
+                    obj.setPath(path);
+                    obj.setFilename(filename);
+                end
+            else
+                if all(hasEmptyComponent),
+                    fullPath = '';
+                else
+                    fullPath = fullfile(obj.getPath(), obj.getFilename());
+                end
+            end
+            
+        end
         %% Functions to manipulate process object array
         function addProcess(obj, newprocess)
+            % Add new process in process list
+            assert(isa(newprocess,'Process'));
             obj.processes_ = horzcat(obj.processes_, {newprocess});
         end
         
+        function proc = getProcess(obj, i)
+            assert(isscalar(i) && ismember(i,1:numel(obj.processes_)));
+            proc = obj.processes_{i};
+        end
+        
+        
         function deleteProcess(obj, process)
-            % Delete and clear given process object in movie data's process array
+            % Delete given process object in process list
             %
             % Input:
             %        process - Process object or index of process to be
@@ -64,313 +169,371 @@ classdef  MovieObject < hgsetget
             % Check input
             if isa(process, 'Process')
                 pid = obj.getProcessIndex(process,1,Inf,false);
-                if isempty(pid)
-                    error('User-defined: The given process is not in current movie processes list.')
-                elseif length(pid) ~=1
-                    error('User-defined: More than one process of this type exists in movie processes list.')
-                end
-                
-                % Make sure process is a integer index
-            elseif ismember(process,1:numel(obj.processes_))
+                assert(~isempty(pid),'The given process is not in current movie processes list.')
+                assert(length(pid)==1,'More than one process of this type exists in movie processes list.')
+            elseif isscalar(process) && ismember(process,1:numel(obj.processes_))
                 pid = process;
             else
                 error('Please provide a Process object or a valid process index of movie data processes list.')
             end
             
-            % Unassociate process in corresponding packages
-            if ~isempty(obj.processes_{pid})
-                [packageID procID] = obj.processes_{pid}.getPackage;
-                if ~isempty(packageID)
-                    for i=1:numel(packageID)
-                        obj.packages_{packageID(i)}.setProcess(procID(i),[]);
-                    end
+            % Check process validity
+            process = obj.processes_{pid};
+            isValid = ~isempty(process) && process.isvalid;
+            
+            if isValid
+                % Unassociate process from parent packages
+                [packageID procID] = process.getPackage();
+                for i=1:numel(packageID)
+                    obj.packages_{packageID(i)}.setProcess(procID(i),[]);
                 end
             end
             
-            % Delete and clear the process object
-            delete(obj.processes_{pid})
-            obj.processes_(pid) = [ ];
+            if isValid && isa(process.owner_, 'MovieData')
+                % Remove process from list for owner and descendants
+                for movie = [process.owner_ process.owner_.getDescendants()]
+                    id = find(cellfun(@(x) isequal(x,process), movie.processes_),1);
+                    if ~isempty(id), movie.processes_(id) = [ ]; end
+                end
+            else
+                obj.processes_(pid) = [ ];
+            end
+            
+            % Delete process object
+            if isValid, delete(process); end
         end
         
         function replaceProcess(obj, pid, newprocess)
+            % Replace process object by another in the analysis list
+            
             % Input check
             ip=inputParser;
-            ip.addRequired('obj');
-            ip.addRequired('pid',@(x) isscalar(x) && ismember(x,1:numel(obj.processes_)) || isa(x,'Process'));
-            ip.addRequired('newprocess',@(x) isa(x,'Process'));
-            ip.parse(obj, pid, newprocess);
+            ip.addRequired('pid', @(x) isa(x,'Process') || ...
+                isnumeric(x) && ismember(x, 1:numel(obj.processes_)));
+            ip.addRequired('newprocess', @(x) isa(x,'Process'));
+            ip.parse(pid, newprocess);
             
             % Retrieve process index if input is of process type
             if isa(pid, 'Process')
-                pid = find(cellfun(@(x)(isequal(x,pid)),obj.processes_));
+                pid = find(cellfun(@(x)(isequal(x,pid)), obj.processes_));
                 assert(isscalar(pid))
             end
             
-            % Check new process is compatible with the parent package
-            [packageID procID] = obj.processes_{pid}.getPackage;
+            [packageID, procID] = obj.getProcess(pid).getPackage;
+            
+            % Check new process is compatible with parent packages
             if ~isempty(packageID)
                 for i=1:numel(packageID)
-                    checkNewProcClass = isa(newprocess,...
-                        obj.packages_{packageID(i)}.getProcessClassNames{procID(i)});
-                    if ~checkNewProcClass
-                        error('Package compatibility prevents process replacement');
-                    end
+                    isValid = isa(newprocess,...
+                        obj.getPackage(packageID(i)).getProcessClassNames{procID(i)});
+                    assert(isValid, 'Package class compatibility prevents process process replacement');
                 end
             end
             
             % Delete old process and replace it by the new one
-            oldprocess=obj.processes_{pid};
-            obj.processes_{pid} = newprocess;
+            oldprocess = obj.getProcess(pid);
+            if isa(oldprocess.owner_, 'MovieData')
+                % Remove process from list for owner and descendants
+                for movie = [oldprocess.owner_ oldprocess.owner_.getDescendants()]
+                    id = find(cellfun(@(x) isequal(x, oldprocess), movie.processes_),1);
+                    if ~isempty(id), movie.processes_{id} = newprocess; end
+                end
+            else
+                obj.processes_{pid} = newprocess;
+            end
             delete(oldprocess);
+            
+            % Associate new process in parent packages
             if ~isempty(packageID),
                 for i=1:numel(packageID)
-                    obj.packages_{packageID(i)}.setProcess(procID(i),newprocess);
+                    obj.getPackage(packageID(i)).setProcess(procID(i),newprocess);
                 end
             end
         end
         
-        function iProc = getProcessIndex(obj,procName,varargin)
-            % Find the index of a process or processes with given class name
-            %
-            % SYNOPSIS      iProc=obj.getProcessIndex(procName)
-            %               iProc=obj.getProcessIndex(procName,nDesired,askUser)
-            
-            % Input check
-            ip = inputParser;
-            ip.addRequired('procName',@ischar);
-            ip.addOptional('nDesired',1,@isscalar);
-            ip.addOptional('askUser',true,@isscalar);
-            ip.parse(procName,varargin{:});
-            nDesired = ip.Results.nDesired;
-            askUser = ip.Results.askUser;
-            
-            % Read process of given type
-            iProc = find(cellfun(@(x)(isa(x,procName)),obj.processes_));
-            nProc = numel(iProc);
-            
-            %If there are only nDesired or less processes found, return
-            if nProc <= nDesired, return; end
-            
-            % If more than nDesired processes
-            if askUser
-                isMultiple = nDesired > 1;
-                procNames = cellfun(@(x)(x.getName),...
-                    obj.processes_(iProc),'UniformOutput',false);
-                iSelected = listdlg('ListString',procNames,...
-                    'SelectionMode',isMultiple,...
-                    'ListSize',[400,400],...
-                    'PromptString',['Select the desired ' procName ':']);
-                iProc = iProc(iSelected);
-                if isempty(iProc)
-                    error('You must select a process to continue!');
-                end
-            else
-                warning('lccb:process',['More than ' num2str(nDesired) ' ' ...
-                    procName 'es were found! Returning most recent process(es)!'])
-                iProc = iProc(end:-1:(end-nDesired+1));
-            end
+        function iProc = getProcessIndex(obj, type, varargin)
+            if isa(type, 'Process'), type = class(type); end
+            iProc = getIndex(obj.processes_, type, varargin{:});
         end
         
         %% Functions to manipulate package object array
         function addPackage(obj, newpackage)
-            % Add a package to the packages_ array
+            % Add package object to the package list
+            assert(isa(newpackage,'Package'));
             obj.packages_ = horzcat(obj.packages_ , {newpackage});
         end
         
+        function package = getPackage(obj, i)
+            assert(isscalar(i) && ismember(i,1:numel(obj.packages_)));
+            package = obj.packages_{i};
+        end
+        
+        
         function deletePackage(obj, package)
+            % Remove package object from the package list
+            
             % Check input
             if isa(package, 'Package')
                 pid = find(cellfun(@(x)isequal(x, package), obj.packages_));
-                if isempty(pid)
-                    error('User-defined: The given package is not in current movie processes list.')
-                elseif length(pid) ~=1
-                    error('User-defined: More than one process of this type exists in movie processes list.')
-                end
-                
-                % Make sure process is a integer index
-            elseif ismember(package,1:numel(obj.packages_))
+                assert(~isempty(pid),'The given package is not in current movie packages list.')
+                assert(length(pid)==1,'More than one package of this type exists in movie packages list.')
+            elseif isscalar(package) && ismember(package,1:numel(obj.packages_))
                 pid = package;
             else
                 error('Please provide a Package object or a valid package index of movie data processes list.')
             end
             
-            % Delete and clear the process object
-            delete(obj.packages_{pid})
-            obj.packages_(pid) = [ ];
+            % Check package validity
+            package = obj.packages_{pid};
+            isValid = ~isempty(package) && package.isvalid;
+            
+            if isValid && isa(package.owner_, 'MovieData')
+                % Remove package from list for owner and descendants
+                for movie = [package.owner_ package.owner_.getDescendants()]
+                    id = find(cellfun(@(x) isequal(x,package), movie.packages_),1);
+                    if ~isempty(id), movie.packages_(id) = [ ]; end
+                end
+            else
+                obj.packages_(pid) = [ ];
+            end
+            
+            % Delete package object
+            if isValid, delete(package); end
         end
         
+        function iPackage = getPackageIndex(obj, type, varargin)
+            if isa(type, 'Package'), type = class(type); end
+            iPackage = getIndex(obj.packages_, type, varargin{:});
+        end
         %% Miscellaneous functions
-        
-        function [askUser,relocateFlag] = sanityCheck(obj, path, filename,askUser)
+        function askUser = sanityCheck(obj, path, filename,askUser)
+            % Check sanity of movie object
+            %
             % Check if the path and filename stored in the movie object are
-            % the same as the ones provided in argument. They can differ if
-            % the MAT file has been renamed or moved to another location.
+            % the same as the input if any. If they differ, call the
+            % movie object relocation routine. Use a dialog interface to ask
+            % for relocation if askUser is set as true and return askUser.
             
             if nargin < 4, askUser = true; end
-            if nargin > 1
+            if nargin > 1 && ~isempty(path)
                 % Remove ending file separators from paths
                 endingFilesepToken = [regexptranslate('escape',filesep) '$'];
                 oldPath = regexprep(obj.getPath(),endingFilesepToken,'');
                 newPath = regexprep(path,endingFilesepToken,'');
+                
+                % If different path
                 if ~strcmp(oldPath, newPath)
+                    confirmRelocate = 'Yes to all';
                     if askUser
-                        objName = regexprep(class(obj),'([A-Z])',' ${lower($1)}');
-                        relocateMsg=sprintf(['The' objName ' located in \n%s\n has been relocated to \n%s.\n'...
-                            'Should I try to relocate the components of the' objName ' as well?'],oldPath,newPath);
-                        confirmRelocate = questdlg(relocateMsg,['Relocation -' objName],'Yes to all','Yes','No','Yes');
-                    else
-                        confirmRelocate = 'Yes to all';
+                        if isa(obj,'MovieData')
+                            type='movie';
+                            components='channels';
+                        elseif isa(obj,'MovieList')
+                            type='movie list';
+                            components='movies';
+                        else
+                            error('Non supported movie object');
+                        end
+                        relocateMsg=sprintf(['The %s and its analysis will be relocated from \n%s to \n%s.\n'...
+                            'Should I relocate its %s as well?'],type,oldPath,newPath,components);
+                        confirmRelocate = questdlg(relocateMsg,['Relocation - ' type],'Yes to all','Yes','No','Yes');
                     end
                     
-                    % Relocate
-                    relocateFlag = ~strcmp(confirmRelocate,'No');
-                    if relocateFlag
-                        obj.relocate(path);
-                        askUser = strcmp(confirmRelocate,'Yes');
-                    else
-                        obj.setPath(path);
-                    end
+                    full = ~strcmp(confirmRelocate,'No');
+                    askUser = ~strcmp(confirmRelocate,'Yes to all');
+                    % Get old and new relocation directories
+                    [oldRootDir newRootDir]=getRelocationDirs(oldPath,newPath);
+                    oldRootDir = regexprep(oldRootDir,endingFilesepToken,'');
+                    newRootDir = regexprep(newRootDir,endingFilesepToken,'');
+                    
+                    % Relocate the object
+                    fprintf(1,'Relocating analysis from %s to %s\n',oldRootDir,newRootDir);
+                    obj.relocate(oldRootDir,newRootDir,full);
                 end
-                obj.setFilename(filename);
             end
+            if nargin > 2 && ~isempty(filename), obj.setFilename(filename); end
+            
+            if isempty(obj.outputDirectory_), warning('lccb:MovieObject:sanityCheck',...
+                    'Empty output directory!'); end
         end
         
-        function [oldRootDir newRootDir]=relocate(obj,newPath)
-            % Relocate all paths of the movie object
+        function relocate(obj,oldRootDir,newRootDir)
+            % Relocate all analysis paths of the movie object
             %
-            % This function automatically relocates the output directory,
-            % processes and package paths assuming the internal
-            % architecture of the  project is conserved.
+            % The relocate method automatically relocates the output directory,
+            % as well as the paths in each process and package of the movie
+            % assuming the internal architecture of the  project is conserved.
             
-            [oldRootDir newRootDir]=getRelocationDirs(obj.getPath,newPath);
-            
+            % Relocate output directory and set the ne movie path
             obj.outputDirectory_=relocatePath(obj.outputDirectory_,oldRootDir,newRootDir);
-            obj.setPath(newPath);
+            obj.setPath(relocatePath(obj.getPath,oldRootDir,newRootDir));
             
-            % Relocate paths in processes input/output as well as function
-            % and visual parameters
-            for i=1:numel(obj.processes_),
-                obj.processes_{i}.relocate(oldRootDir,newRootDir);
-            end
+            % Relocate the processes
+            for i=1:numel(obj.processes_), obj.processes_{i}.relocate(oldRootDir,newRootDir); end
             
-            for i=1:numel(obj.packages_),
-                obj.packages_{i}.relocate(oldRootDir,newRootDir);
-            end
-        end
-        
-        function flag = save(obj)
-            % Save the movie object to disk.
-            %
-            % This function check for the values of the path and filename.
-            % If empty, it launches a dialog box asking where to save the
-            % movie object. If a MAT file already exist, copies this MAT
-            % file before saving the MovieObject.
-            %
-            % OUTPUT:
-            %    flag - a flag returning the status of the save method
-            movieClass =class(obj);
-            
-            % If no path or fileName, start a dialog box asking where to save the MovieObject
-            if isempty(obj.getPath) || isempty(obj.getFilename)
-                if ~isempty(obj.getPath),
-                    defaultDir=obj.getPath;
-                elseif ~isempty(obj.outputDirectory_)
-                    defaultDir=obj.outputDirectory_;
-                else
-                    defaultDir =pwd;
-                end
-                objName = regexprep(movieClass,'([A-Z])',' ${lower($1)}');
-                defaultName = regexprep(movieClass,'(^[A-Z])','${lower($1)}');
-                [filename,path] = uiputfile('*.mat',['Find a place to save your' objName],...
-                    [defaultDir filesep defaultName '.mat']);
-                
-                if ~any([filename,path]), flag=0; return; end
-                
-                % After checking file directory, set directory to movie data
-                obj.setPath(path);
-                obj.setFilename(filename);
-            end
-            
-            %First, check if there is an existing file. If so, save a
-            %backup. Then save the MovieData as obj
-            fullPath = [obj.getPath filesep obj.getFilename];
-            if exist(fullPath,'file');
-                copyfile(fullPath,[fullPath(1:end-3) 'old']);
-            end
-            
-            switch (movieClass)
-                case 'MovieData'
-                    MD=obj; %#ok<NASGU>
-                    save(fullPath,'MD');
-                case 'MovieList'
-                    ML=obj; %#ok<NASGU>
-                    save(fullPath,'ML');
-            end
-            
-            flag=1;
+            % Relocate the packages
+            for i=1:numel(obj.packages_), obj.packages_{i}.relocate(oldRootDir,newRootDir); end
         end
         
         function reset(obj)
-            % Reset the movieObject
+            % Reset the analysis of the movie object
             obj.processes_={};
             obj.packages_={};
         end
         
+        %% OMERO functions
+        function status = isOmero(obj)
+            status = ~isempty(obj.omeroId_);
+        end
+        
+        function setOmeroSession(obj,session)
+            obj.omeroSession_ = session;
+        end
+        
+        function session = getOmeroSession(obj)
+            session = obj.omeroSession_;
+        end
+        
+        function setOmeroSave(obj, status)
+            obj.omeroSave_ = status;
+        end
+        
+        function id = getOmeroId(obj)
+            id = obj.omeroId_;
+        end
+        
+        function setOmeroId(obj, id)
+            obj.checkPropertyValue('omeroId_', id);
+            obj.omeroId_ = id;
+        end
+        
+        function status = canUpload(obj)
+            status = obj.omeroSave_ && ~isempty(obj.getOmeroSession());
+        end
+        
     end
-    methods (Abstract)
-        getPath(obj)
-        getFilename(obj)
-        setPath(obj,path)
-        setFilename(obj,filename)
-    end
+    
     methods(Static)
-        function status = checkProperty(property)
-            % Returns true/false if the non-empty property is writable
-            status = false;
-            switch property
-                case {'notes_'};
-                    status = true;
-                case {'outputDirectory_'};
-                    stack = dbstack;
-                    if any(cellfun(@(x)strcmp(x,'MovieObject.relocate'),{stack.name})),
-                        status  = true;
-                    end
+        function obj = load(varargin)
+            % Load/reaload a movie object
+            
+            assert(nargin > 0);
+            assert(MovieObject.isOmeroSession(varargin{1}) || ...
+                exist(varargin{1}, 'file') == 2)
+            
+            if MovieObject.isOmeroSession(varargin{1}),
+                obj = MovieObject.loadOmero(varargin{:});
+            else
+                isMatFile = strcmpi(varargin{1}(end-3:end), '.mat');
+                if isMatFile,
+                    obj = MovieObject.loadMatFile(varargin{:});
+                else
+                    obj = MovieObject.loadImageFile(varargin{:});
+                end
             end
         end
         
-        
-        
-        function obj = load(fullpath,askUser)
-            % Load a movie object stored in a mat file
+        function obj = loadMatFile(filepath, varargin)
             
-            % Check the path is a valid Mat file
-            assert(exist(fullpath, 'file')==2,'lccb:movieObject:load', 'File does not exist.');
+            % Retrieve the absolute path
+            [~, f] = fileattrib(filepath);
+            filepath = f.Name;
+            
+            % Import movie object from MAT file
             try
-                vars = whos('-file',fullpath);
-            catch ME
-                ME2 = MException('lccb:movieObject:load', 'Fail to open file. Make sure it is a MAT file.');
-                ME.addCause(ME2);
-                thorw(ME);
+                % List variables in the path
+                vars = whos('-file', filepath);
+            catch whosException
+                ME = MException('lccb:movieObject:load', 'Fail to open file. Make sure it is a MAT file.');
+                ME = ME.addCause(whosException);
+                throw(ME);
             end
             
-            % Check if a movie object is part of the v
+            % Check if a single movie object is in the variables
             isMovie = cellfun(@(x) any(strcmp(superclasses(x),'MovieObject')),{vars.class});
-            if ~any(isMovie)
-                error('lccb:movieObject:load', ...
-                    'No movie object is found in selected MAT file.');
-            end
-            if sum(isMovie)>1
-                error('lccb:movieObject:load', ...
-                    'Multiple movie objects are found in selected MAT file.');
-            end
+            assert(any(isMovie),'lccb:movieObject:load', ...
+                'No movie object is found in selected MAT file.');
+            assert(sum(isMovie)==1,'lccb:movieObject:load', ...
+                'Multiple movie objects are found in selected MAT file.');
             
-            data = load(fullpath,'-mat',vars(isMovie).name);
+            % Load movie object
+            data = load(filepath, '-mat', vars(isMovie).name);
             obj= data.(vars(isMovie).name);
             
-            if nargin<2, askUser=true; end
-            [moviePath,movieName,movieExt]=fileparts(fullpath);
-            obj.sanityCheck(moviePath,[movieName movieExt],askUser);
+            % Perform sanityCheck using the input path
+            [moviePath,movieName,movieExt]=fileparts(filepath);
+            if nargin>1 &&  MovieObject.isOmeroSession(varargin{1}),
+                obj.setOmeroSession(varargin{1});
+                obj.sanityCheck(moviePath,[movieName movieExt], varargin{2:end});
+            else
+                obj.sanityCheck(moviePath,[movieName movieExt], varargin{:});
+            end
+        end
+        
+        function obj = loadImageFile(imagepath, varargin)
+            % Retrieve the absolute path
+            [~, f] = fileattrib(imagepath);
+            imagepath = f.Name;
+            
+            obj = bfImport(imagepath, varargin{:});
+        end
+        
+        function obj = loadOmero(session, varargin)
+            obj = getOmeroMovies(session, varargin{:});
+        end
+        
+        function validator = getPropertyValidator(property)
+            validator=[];
+            if ismember(property,{'outputDirectory_','notes_'})
+                validator=@ischar;
+            elseif strcmp(property, 'omeroId_')
+                validator = @isposint;
+            end
+        end
+        
+        function status = isOmeroSession(session)
+            status = isa(session, 'omero.api.ServiceFactoryPrxHelper');
         end
         
     end
+    methods (Static,Abstract)
+        getPathProperty()
+        getFilenameProperty()
+    end
+end
+
+function iProc = getIndex(list, type, varargin)
+% Find the index of a object of given class
+
+% Input check
+ip = inputParser;
+ip.addRequired('list',@iscell);
+ip.addRequired('type',@ischar);
+ip.addOptional('nDesired',1,@isscalar);
+ip.addOptional('askUser',true,@isscalar);
+ip.parse(list, type, varargin{:});
+nDesired = ip.Results.nDesired;
+askUser = ip.Results.askUser;
+
+
+iProc = find(cellfun(@(x) isa(x,type), list));
+nProc = numel(iProc);
+
+%If there are only nDesired or less processes found, return
+if nProc <= nDesired, return; end
+
+% If more than nDesired processes
+if askUser
+    isMultiple = nDesired > 1;
+    names = cellfun(@(x) (x.getName()), list(iProc), 'UniformOutput', false);
+    iSelected = listdlg('ListString', names,...
+        'SelectionMode', isMultiple, 'ListSize', [400,400],...
+        'PromptString', ['Select the desired ' type ':']);
+    iProc = iProc(iSelected);
+    assert(~isempty(iProc), 'You must select a process to continue!');
+else
+    warning('lccb:process', ['More than ' num2str(nDesired) ' objects '...
+        'of class ' type ' were found! Returning most recent!'])
+    iProc = iProc(end:-1:(end-nDesired+1));
+end
 end

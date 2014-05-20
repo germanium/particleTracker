@@ -1,8 +1,31 @@
 classdef LineDisplay < MovieDataDisplay
-    %Concreate display class for displaying points or lines
+    % Concrete display class for displaying points or lines
+    % Input data must be expressed in xy coordinate system
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+    
+    % Sebastien Besson Jun 2011 (last modified May 2012)
     properties
         Color='r';
         Marker = 'none';
+        MarkerSize = 6; 
         LineStyle = '-';
         LineWidth = 1;
         XLabel='';
@@ -16,20 +39,20 @@ classdef LineDisplay < MovieDataDisplay
             obj@MovieDataDisplay(varargin{:})
         end
         function h=initDraw(obj,data,tag,varargin)
-            
-            h=plot(data(:,2),data(:,1),varargin{:});
-            set(h,'Tag',tag,'Color',obj.Color,'Marker',obj.Marker,...
+            % Plot data and set graphical options
+            h=plot(data(:,1),data(:,2),varargin{:});
+            set(h,'Tag',tag,'MarkerSize',obj.MarkerSize,...
+                'Color',obj.Color,'Marker',obj.Marker,...
                 'Linestyle',obj.LineStyle,'LineWidth',obj.LineWidth);
             obj.setAxesProperties;
-            
         end
         function updateDraw(obj,h,data)
-            set(h,'XData',data(:,2),'YData',data(:,1));
+            % Update handle xData and yData
+            set(h,'XData',data(:,1),'YData',data(:,2));
             obj.setAxesProperties;
         end
-    end
-    methods(Access=protected)
         function setAxesProperties(obj)
+            % Set labels and fonts
             if ~isempty(obj.XLabel),xlabel(obj.XLabel,obj.lfont{:}); end
             if ~isempty(obj.YLabel),ylabel(obj.YLabel,obj.lfont{:}); end
             set(gca,'LineWidth', 1.5, obj.sfont{:})
@@ -54,6 +77,8 @@ classdef LineDisplay < MovieDataDisplay
             params(7).validator=@iscell;
             params(8).name='lfont';
             params(8).validator=@iscell;
+            params(9).name='MarkerSize';
+            params(9).validator=@isscalar;
         end
         function f=getDataValidator()
             f=@isnumeric;

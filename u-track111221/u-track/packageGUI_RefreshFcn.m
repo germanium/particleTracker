@@ -10,6 +10,25 @@ function packageGUI_RefreshFcn(handles, type)
 %
 % Chuangang Ren 08/2010
 % Sebastien Besson (last modified Nov 2011)
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Input check
 ip = inputParser;
@@ -17,33 +36,31 @@ ip.addRequired('handles',@isstruct);
 ip.addRequired('type',@(x) any(strcmp(x,{'initialize','refresh'})));
 ip.parse(handles,type)
 
+% Retrieve handles
 userData = get(handles.figure1, 'UserData');
 nProc = size(userData.dependM, 1);
+setupHandles = arrayfun(@(i)handles.(['checkbox_',num2str(i)]),1:nProc);
+showHandles = arrayfun(@(i)handles.(['pushbutton_show_',num2str(i)]),1:nProc);
+openHandles = arrayfun(@(i)handles.(['pushbutton_open_',num2str(i)]),1:nProc);
+set(setupHandles,'Enable','on');
 
 % Set movie data path
+if ~isempty(userData.MD), field='MD'; else field = 'ML'; end
 set(handles.edit_path, 'String', ...
-    [userData.MD(userData.id).getPath filesep userData.MD(userData.id).getFilename])
+    [userData.(field)(userData.id).getPath filesep userData.(field)(userData.id).getFilename])
 
 % Bold the name of set-up processes
 setupProc = ~cellfun(@isempty,userData.crtPackage.processes_);
-for i=find(setupProc)
-    set(handles.(['checkbox_',num2str(i)]),'FontWeight','bold');
-end
-
-for i=find(~setupProc)
-    set(handles.(['checkbox_',num2str(i)]),'FontWeight','normal');
-    set(handles.(['pushbutton_show_',num2str(i)]),'Enable','off');
-end
+set(setupHandles(setupProc),'FontWeight','bold','Enable','on');
+set(setupHandles(~setupProc),'FontWeight','normal');
 
 % Allow visualization of successfully run processes
-successProc = false(size(setupProc));
+successProc = false(1,nProc);
 successProc(setupProc) = cellfun(@(x) x.success_,userData.crtPackage.processes_(setupProc));
-for i=find(successProc)
-    set(handles.(['pushbutton_show_',num2str(i)]),'Enable','on');
-end
-for i=find(~successProc)
-    set(handles.(['pushbutton_show_',num2str(i)]),'Enable','off');
-end
+set(showHandles(successProc),'Enable','on');
+set(showHandles(~successProc),'Enable','off');
+set(openHandles(successProc),'Enable','on');
+set(openHandles(~successProc),'Enable','off');
 
 % Run sanityCheck on package 
 % if strcmp(type, 'initialize'), full=true; else full=false; end
@@ -70,23 +87,18 @@ for i = find(~cellfun(@isempty,procEx));
         sprintf('%s\n',procEx{i}(:).message), true);
 end
 
-
 % Set processes checkbox value
-for i = find(~userData.statusM(userData.id).Checked)
-    set(handles.(['checkbox_',num2str(i)]),'Value',0);
-end
-
-for i = find(userData.statusM(userData.id).Checked)
-     set(handles.(['checkbox_',num2str(i)]),'Value',1);
-     userfcn_lampSwitch(i, 1, handles)
-end
+checkedProc = logical(userData.statusM(userData.id).Checked);
+set(setupHandles(~checkedProc),'Value',0);
+set(setupHandles(checkedProc),'Value',1);
+arrayfun(@(i) userfcn_lampSwitch(i,1,handles),...
+    find(checkedProc | setupProc | successProc));
 
 % Checkbox enable/disable set up
-k= successProc | userData.statusM(userData.id).Checked;
+k= successProc | checkedProc;
 tempDependM = userData.dependM;
 tempDependM(:,logical(k)) = zeros(nProc, nnz(k));
 userfcn_enable(find (any(tempDependM==1,2)), 'off',handles);
-
 
 if strcmp(type, 'initialize')
     userData.statusM(userData.id).Visited = true;

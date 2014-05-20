@@ -13,6 +13,25 @@ function detectMovieSubResFeatures(movieData,varargin)
 %   names and possible values as described below
 %
 % OUTPUT   
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Sebastien Besson, Oct 2011
 
@@ -71,17 +90,21 @@ for i = p.ChannelIndex
     disp(outFilePaths{1,i});
     
     % Retrieve information about the images
-    [~, base, digits4Enum ~] = getFilenameBody(movieData.getImageFileNames{i}{1});
-    digits4Enum = length(digits4Enum);
-    
-    movieParam.imageDir = [inFilePaths{1,i} filesep];
-    movieParam.filenameBase = base;
-    movieParam.digits4Enum = digits4Enum;
+    if movieData.isOmero() || movieData.isBF()
+        movieParam.channel = movieData.channels_(i);
+    else
+        [~, base, digits4Enum, ~] = getFilenameBody(movieData.getImageFileNames{i}{1});
+        digits4Enum = length(digits4Enum);
+        
+        movieParam.imageDir = [inFilePaths{1,i} filesep];
+        movieParam.filenameBase = base;
+        movieParam.digits4Enum = digits4Enum;
+    end    
     movieParam.firstImageNum=p.firstImageNum;
     movieParam.lastImageNum=p.lastImageNum;
 
     % Call stand-alone subresolution detection function
-    detectSubResFeatures2D_StandAlone(movieParam, p.detectionParam, saveResults(i));
+    movieInfo = detectSubResFeatures2D_StandAlone(movieParam, p.detectionParam, saveResults(i));
 end
 
 disp('Finished detecting diffraction-limited objects...')

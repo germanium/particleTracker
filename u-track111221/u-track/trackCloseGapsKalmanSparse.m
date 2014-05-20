@@ -113,6 +113,25 @@ function [tracksFinal,kalmanInfoLink,errFlag] = trackCloseGapsKalmanSparse(...
 %       errFlag       : 0 if function executes normally, 1 otherwise.
 %
 %Khuloud Jaqaman, April 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Output
 
@@ -319,7 +338,7 @@ if selfAdaptive
     if verbose
         disp('Linking features forwards ...');
     end
-    [~,~,kalmanInfoLink,~,linkingCosts] = linkFeaturesKalmanSparse(...
+    [tmp,dummy,kalmanInfoLink,dummy,linkingCosts] = linkFeaturesKalmanSparse(...
         movieInfo,costMatrices(1).funcName,costMatrices(1).parameters,...
         kalmanFunctions,probDim,[],[],verbose);
     clear dummy
@@ -335,10 +354,10 @@ if selfAdaptive
     if verbose
         disp('Linking features backwards ...');
     end
-    [~,~,kalmanInfoLink,~,linkingCosts] = linkFeaturesKalmanSparse(...
+    [dummy,dummy,kalmanInfoLink,dummy,linkingCosts] = linkFeaturesKalmanSparse(...
         movieInfo(end:-1:1),costMatrices(1).funcName,costMatrices(1).parameters,...
         kalmanFunctions,probDim,kalmanInfoLink,linkingCosts,verbose);
-    
+    clear dummy
 
     %time-reverse Kalman filter information
     % -- USER DEFINED FUNCTION -- %
@@ -351,7 +370,7 @@ if selfAdaptive
         disp('Linking features forwards ...');
     end
     [tracksFeatIndxLink,tracksCoordAmpLink,kalmanInfoLink,nnDistLinkedFeat,...
-        ~,errFlag] = linkFeaturesKalmanSparse(movieInfo,costMatrices(1).funcName,...
+        dummy,errFlag] = linkFeaturesKalmanSparse(movieInfo,costMatrices(1).funcName,...
         costMatrices(1).parameters,kalmanFunctions,probDim,...
         kalmanInfoLink,linkingCosts,verbose);
     clear dummy
@@ -362,8 +381,8 @@ else %if not self-adaptive, link in one round only
     if verbose
         disp('Linking features ...');
     end
-    [tracksFeatIndxLink,tracksCoordAmpLink,~,nnDistLinkedFeat,...
-        ~,errFlag] = linkFeaturesKalmanSparse(movieInfo,costMatrices(1).funcName,...
+    [tracksFeatIndxLink,tracksCoordAmpLink,dummy,nnDistLinkedFeat,...
+        dummy,errFlag] = linkFeaturesKalmanSparse(movieInfo,costMatrices(1).funcName,...
         costMatrices(1).parameters,kalmanFunctions,probDim,[],[],verbose);
     kalmanInfoLink = [];
     clear dummy
@@ -381,7 +400,7 @@ if isequal(costMatrices(2).funcName,'plusTipCostMatCloseGaps')
     tracksCoordAmpLink(:,3:8:end) = 0;
     tracksCoordAmpLink(:,7:8:end) = 0;
     [tracksCoordAmpLink,tracksFeatIndxLink,nnDistLinkedFeat]=...
-       breakNonlinearTracks(tracksCoordAmpLink,tracksFeatIndxLink,nnDistLinkedFeat);
+       plusTipBreakNonlinearTracks(tracksCoordAmpLink,tracksFeatIndxLink,nnDistLinkedFeat);
 end
 
 

@@ -3,11 +3,32 @@ function packageGUI_OpeningFcn(hObject,eventdata,handles,packageName,varargin)
 %
 % packageGUI_OpeningFcn(packageName,MD)   MD: MovieData object
 %
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+
 % Useful tools
 %
 % User Data:
 %
 %       userData.MD - array of MovieData object
+%       userData.MD - array of MovieList object
 %       userData.package - array of package (same length with userData.MD)
 %       userData.crtPackage - the package of current MD
 %       userData.id - the id of current MD on board
@@ -51,39 +72,42 @@ ip = inputParser;
 ip.addRequired('hObject',@ishandle);
 ip.addRequired('eventdata',@(x) isstruct(x) || isempty(x));
 ip.addRequired('handles',@isstruct);
-ip.addRequired('packageName',@(x) isa(x,'char') || isa(x,'function_handle'));
-ip.addOptional('MD',[],@(x) isa(x,'MovieObject'));
+ip.addRequired('packageName',@ischar);
+ip.addOptional('MO',[],@(x) isa(x,'MovieObject'));
+ip.addParamValue('MD',[],@(x) isempty(x) || isa(x,'MovieData'));
+ip.addParamValue('ML',[],@(x) isempty(x) || isa(x,'MovieList'));
+ip.addParamValue('packageConstr','',@(x) isa(x,'function_handle'));
 ip.parse(hObject,eventdata,handles,packageName,varargin{:});
 
-
-% Generate the package constructor
-if isa(packageName,'function_handle')
-    packageConstr=packageName;
-    packageName=func2str(packageName);
-elseif isa(packageName,'char')
-    packageConstr=str2func(packageName);
-end
-
+% Read the package name
+packageName = ip.Results.packageName;
 assert(any(strcmp(superclasses(packageName),'Package')),...
     sprintf('%s is not a valid Package',packageName));
       
 handles.output = hObject;
 userData = get(handles.figure1,'UserData');
 userData.packageName = packageName;
-userData.MD=ip.Results.MD;
-
-% Call package GUI error
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright);
+userData.MD = ip.Results.MD;
+userData.ML = ip.Results.ML;
 
 %If package GUI supplied without argument, saves a boolean which will be
 %read by packageNameGUI_OutputFcn
-if isempty(userData.MD)
+if isempty(ip.Results.MO)
     userData.startMovieSelectorGUI=true;
     set(handles.figure1,'UserData',userData);
     guidata(hObject, handles);
     return
 end
+
+if isa(ip.Results.MO,'MovieList')
+    userData.ML = ip.Results.MO;
+    set(handles.pushbutton_status,'Enable','off');
+else
+    userData.MD=ip.Results.MO;
+end
+
+% Call package GUI error
+set(handles.text_copyright, 'String', getLCCBCopyright());
 
 % Singleton control
 try assert(~userData.init)
@@ -97,32 +121,67 @@ end
 
 
 % ----------------------------- Load MovieData ----------------------------
-nMovies = numel(userData.MD);
+nMovies = numel(ip.Results.MO);
 packageIndx = cell(1, nMovies);
 
 % I. Before loading MovieData, firstly check if the current package exists
 for i = 1:nMovies
     % Check for existing packages and create them if false
-    packageIndx{i} = find(cellfun(@(x) isa(x,packageName),...
-        userData.MD(i).packages_),1);
-    if packageIndx{i}
-        userData.package(i) = userData.MD(i).packages_{packageIndx{i}};
+    packageIndx{i} = ip.Results.MO(i).getPackageIndex(packageName,1,false);
+end
+
+for i = find(~cellfun(@isempty, packageIndx))
+    userData.package(i) = ip.Results.MO(i).packages_{packageIndx{i}};
+end
+
+if any(cellfun(@isempty, packageIndx))
+    % Get the adapted constructor
+    if ~isempty(ip.Results.packageConstr),
+        packageConstr = ip.Results.packageConstr;
+    elseif isConcreteClass(userData.packageName)
+        packageConstr = str2func(userData.packageName);
     else
-        userData.MD(i).addPackage(packageConstr(userData.MD(i),...
-            userData.MD(i).outputDirectory_));
-        userData.package(i) = userData.MD(i).packages_{end};
+        % Launch interface to determine constructor
+        concretePackages = eval([userData.packageName '.getConcretePackages()']);
+        [selection, status] = listdlg('Name','',...
+            'PromptString',{'Select the type of object';'you want to track:'},...
+            'ListString', {concretePackages.name},'SelectionMode','single');
+        if ~status,
+            userData.startMovieSelectorGUI=true;
+            set(handles.figure1,'UserData',userData);
+            guidata(hObject, handles); 
+            return
+        end
+        packageConstr = concretePackages(selection).packageConstr;
     end
     
-    % Run sanity check to check basic dependencies are satisfied
+    % Add package to movie
+    for i = find(cellfun(@isempty, packageIndx))
+        ip.Results.MO(i).addPackage(packageConstr(ip.Results.MO(i),...
+            ip.Results.MO(i).outputDirectory_));
+        userData.package(i) = ip.Results.MO(i).packages_{end};
+    end
+end
+
+% Run sanity check to check basic dependencies are satisfied
+movieExceptions = cell(nMovies, 1);
+for i = 1:nMovies
     try
         userData.package(i).sanityCheck(true,'all');
     catch ME
-        errordlg(ME.message,'Package initialization','modal');
-        userData.startMovieSelectorGUI=true;
-        set(handles.figure1,'UserData',userData);
-        guidata(hObject, handles);
-        return
+        movieExceptions{i} = MException('lccb:initialization',...
+            '%s initialization',...
+            userData.package(i).getName);
+        movieExceptions{i} = movieExceptions{i}.addCause(ME);
     end
+end
+
+if ~all(cellfun(@isempty, movieExceptions))
+    generateReport(movieExceptions, userData);
+    userData.startMovieSelectorGUI=true;
+    set(handles.figure1,'UserData',userData);
+    guidata(hObject, handles);
+    return
 end
 
 % ------------- Check if existing processes can be recycled ---------------
@@ -131,10 +190,10 @@ processClassNames = userData.package(1).getProcessClassNames;
 
 % Multiple movies loop
 for i = 1:nMovies
-    if isempty(packageIndx{i}) && ~isempty(userData.MD(i).processes_)
+    if isempty(packageIndx{i}) && ~isempty(ip.Results.MO(i).processes_)
         recyclableProcIndx = cellfun(@(x) cellfun(@(y)isa(y,x),...
-            userData.MD(i).processes_),processClassNames,'UniformOutput',false);
-        recyclableProc{i}=userData.MD(i).processes_(any(vertcat(recyclableProcIndx{:}),1));
+            ip.Results.MO(i).processes_),processClassNames,'UniformOutput',false);
+        recyclableProc{i}=ip.Results.MO(i).processes_(any(vertcat(recyclableProcIndx{:}),1));
     end
 end
 
@@ -166,13 +225,7 @@ userData.statusM = repmat( struct('IconType', {cell(1,nProc)}, 'Msg', {cell(1,nP
 % -----------------------Load and set up icons----------------------------
 
 % Load icon images from dialogicons.mat
-load lccbGuiIcons.mat
-
-% Save Icon data to GUI data
-userData.passIconData = passIconData;
-userData.errorIconData = errorIconData;
-userData.warnIconData = warnIconData;
-userData.questIconData = questIconData;
+userData = loadLCCBIcons(userData);
 
 % Set figure colormap
 supermap(1,:) = get(hObject,'color');
@@ -182,14 +235,10 @@ userData.colormap = supermap;
 
 % Set up package help. 
 set(handles.figure1,'CurrentAxes',handles.axes_help);
-Img = image(questIconData); 
+Img = image(userData.questIconData); 
 set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
     'visible','off','YDir','reverse');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-
-if openHelpFile
-    set(Img, 'UserData', struct('class', packageName))
-end
+set(Img,'ButtonDownFcn',@icon_ButtonDownFcn, 'UserData', struct('class', packageName))
 % --------------------------Set up processes------------------------------
 
 % List of template process uicontrols to expand
@@ -198,6 +247,10 @@ templateTag{2} = 'axes_icon';
 templateTag{3} = 'pushbutton_show';
 templateTag{4} = 'pushbutton_set';
 templateTag{5} = 'axes_prochelp';
+templateTag{6} = 'pushbutton_open';
+
+set(handles.(templateTag{6}),'CData',userData.openIconData);
+
 % templateTag{6} = 'pushbutton_clear'; To be implemented someday?
 procTag=templateTag;
 set(handles.figure1,'Position',...
@@ -223,14 +276,11 @@ for i = 1:nProc
     set(handles.(procTag{1}),'String',checkboxString)
     
     set(handles.figure1,'CurrentAxes',handles.(procTag{5}));
-    Img = image(questIconData);
+    Img = image(userData.smallquestIconData);
     set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
         'visible','off','YDir','reverse');  
-    set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-        
-    if openHelpFile
-        set(Img, 'UserData', struct('class', processClassName))
-    end
+    set(Img,'ButtonDownFcn',@icon_ButtonDownFcn,...
+        'UserData', struct('class', processClassName))
 end
 
 cellfun(@(x)delete(handles.(x)),templateTag)
@@ -268,13 +318,14 @@ set(handles.text_packageName,'String',userData.crtPackage.getName);
 
 % Set movie explorer
 msg = {};
-for i = 1: length(userData.MD)
-    msg = cat(2, msg, {sprintf('  Movie %d of %d', i, length(userData.MD))});
+if isa(ip.Results.MO,'MovieData'), movieType = 'Movie'; else movieType = 'Movie list'; end
+for i = 1: length(ip.Results.MO)
+    msg = horzcat(msg, {sprintf('  %s %d of %d', movieType, i, length(ip.Results.MO))});
 end
 set(handles.popupmenu_movie, 'String', msg, 'Value', userData.id);
 
 % Set option depen
-if length(userData.MD) == 1
+if length(ip.Results.MO) == 1
     set(handles.checkbox_runall, 'Visible', 'off')
     set(handles.pushbutton_left, 'Enable', 'off')
     set(handles.pushbutton_right, 'Enable', 'off')   

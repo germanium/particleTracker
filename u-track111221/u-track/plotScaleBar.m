@@ -16,6 +16,25 @@
 %
 % Note: there is a bug in '-depsc2' as of Matlab2010b, which misprints patches.
 %       When printing, use 'depsc' instead.
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Francois Aguet, March 14 2011 (last modified 07/26/2011)
 
@@ -40,6 +59,12 @@ color = ip.Results.Color;
 height = ip.Results.height;
 location = lower(ip.Results.Location);
 
+if ~isempty(fontSize)
+    fontUnits = 'points';
+else
+    fontUnits = 'normalized';
+end
+
 XLim = get(ip.Results.Handle, 'XLim');
 YLim = get(ip.Results.Handle, 'YLim');
 
@@ -50,10 +75,11 @@ dx = ly/20; % distance from border
 
 if ~isempty(label)
     if isempty(fontSize)
-        fontSize = 3*height/ly; % normalized units        
+        fontSize = 3*height/ly; % normalized units            
     end
     % get height of default text bounding box
-    h = text(0, 0, label, 'FontUnits', 'normalized', 'FontName', fontName, 'FontSize', fontSize);
+    h = text(0, 0, label, 'FontUnits', fontUnits, 'FontName', fontName, 'FontSize', fontSize);
+    
     extent = get(h, 'extent'); % units: pixels
     textHeight = 1.2*extent(4);
     textWidth = extent(3);
@@ -78,6 +104,8 @@ else
     x0 = dx;
 end
 
+x0 = x0+XLim(1);
+y0 = y0+YLim(1);
 
 % text alignment if > scalebar width
 if textWidth > width
@@ -93,16 +121,14 @@ else
     tx = x0+width/2;
 end
 
-textProps = {'Color', color, 'FontUnits', 'normalized',...
+textProps = {'Color', color, 'FontUnits', fontUnits,...
     'FontName', fontName, 'FontSize', fontSize,...
     'VerticalAlignment', 'Top',...
     'HorizontalAlignment', halign};
 
-x0 = x0+XLim(1);
-y0 = y0+YLim(1);
 
 hScaleBar(1) = fill([x0 x0+width x0+width x0], [y0+height y0+height y0 y0],...
     color, 'EdgeColor', 'none', 'Parent', ip.Results.Handle);
 if ~isempty(label)
-    hScaleBar(2) = text(tx, y0+height, label, textProps{:});
+    hScaleBar(2) = text(tx, y0+height, label, textProps{:}, 'Parent', ip.Results.Handle);
 end

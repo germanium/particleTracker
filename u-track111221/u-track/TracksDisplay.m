@@ -1,7 +1,27 @@
 classdef TracksDisplay < MovieDataDisplay
     %Conrete class for displaying flow
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
     properties
         Linestyle='-';
+        Linewidth=1;
         GapLinestyle='--';
         Color='r';  
         dragtailLength=10;
@@ -16,73 +36,96 @@ classdef TracksDisplay < MovieDataDisplay
                 end
             end
         end
-        function h=initDraw(obj,data,tag,varargin)
-            nTracks = numel(data.x);
-            h=-ones(nTracks,2);
-            for i=1:nTracks
-                xData= data.x{i}(max(1,end-obj.dragtailLength):end);
-                yData= data.y{i}(max(1,end-obj.dragtailLength):end);
-                h(i,1)=plot(xData(~isnan(xData)),yData(~isnan(yData)),...
-                    'Linestyle',obj.GapLinestyle','Color',obj.Color,...
-                    varargin{:});
-                h(i,2)=plot(xData,yData,...
-                    'Linestyle',obj.Linestyle,'Color',obj.Color,...
-                    varargin{:});
-            end
-            set(h,'Tag',tag); 
+        function h=initDraw(obj, tracks, tag, varargin)
+                        
+            if isempty(tracks), h = -1; return; end
+            % Get track length and filter valid tracks
+            trackLengths = cellfun(@numel,{tracks.xCoord});
+            validTracks = find(trackLengths>0);
+            tracks = tracks(validTracks);
+            trackLengths = trackLengths(validTracks);
             
-            if isfield(data,'label')  && obj.showLabel
-                ht=-ones(nTracks,1);
-                for i=1:nTracks
-                    ht(i) = text(data.x{i}(end),data.y{i}(end),num2str(data.label(i)));
-                end
-                set(ht,'Tag',tag);
+            nTracks = numel(validTracks);
+            h=-ones(nTracks,3);
 
+            % Constraing the dragtail length between 2 and the maximum
+            % track length
+            dLength = max(2,min(obj.dragtailLength,max(trackLengths)));
+            
+            % Concatenate data in a matrix of size dragtailLength x nTracks
+            xData = NaN(dLength, nTracks);
+            yData = NaN(dLength, nTracks);
+            for i = 1 : nTracks
+                displayLength = trackLengths(i) - max(0,trackLengths(i)-dLength);
+                xData(1:displayLength, i) = tracks(i).xCoord(end-displayLength+1:end);
+                yData(1:displayLength, i) = tracks(i).yCoord(end-displayLength+1:end);
             end
+            
+            % Initialize matrix for gaps
+            xGapData = NaN(size(xData));
+            yGapData = NaN(size(xData));
+            
+            % Label gaps: series of NaNs not-connected to the border
+            I = isnan(xData);
+            I = [I; zeros(size(I))];
+            I = reshape(I, size(I,1)/2, size(I,2)*2);
+            I = bwlabel(imclearborder(I));
+            I = I(:, 1:2:end);
+            
+            % Fill gaps x and y data
+            for i = unique(nonzeros(I))'
+               iFirst = find(I == i, 1, 'first')-1;
+               iLast = find(I == i, 1, 'last')+1;
+               xGapData(iFirst:iLast) = linspace(xData(iFirst), xData(iLast), iLast - iFirst +1);
+               yGapData(iFirst:iLast) = linspace(yData(iFirst), yData(iLast), iLast - iFirst +1);
+            end
+
+            % Plot tracks
+            if isfield(tracks,'label') % If track is classified
+                nColors = size(obj.Color,1);
+                for iColor = 1:nColors
+                    iTracks = mod([tracks.label]-1, nColors) +1 == iColor;
+                    h(iTracks,1)=plot(xData(:,iTracks),yData(:,iTracks),'Linestyle',obj.Linestyle,...
+                        'Linewidth', obj.Linewidth, 'Color',obj.Color(iColor,:),varargin{:});
+                    h(iTracks,2)=plot(xGapData(:,iTracks),yGapData(:,iTracks),'Linestyle',obj.GapLinestyle,...
+                        'Linewidth', obj.Linewidth, 'Color', obj.Color(iColor,:),varargin{:});
+                end
+            else
+                % Plot links and gaps
+                h(:,1) = plot(xData, yData, 'Linestyle', obj.Linestyle,...
+                    'Linewidth', obj.Linewidth, 'Color',obj.Color,varargin{:});
+                h(:,2) = plot(xGapData, yGapData, 'Linestyle', obj.GapLinestyle',...
+                    'Linewidth', obj.Linewidth, 'Color',[1 1 1] - obj.Color, varargin{:});
+            end
+            
+            % Display track numbers if option is selected
+            if obj.showLabel
+                for i = find(~all(isnan(xData),1))
+                    trackNr = num2str(tracks(i).number);
+                    % Find last non-NaN coordinate
+                    index = find(~isnan(xData(:,i)),1,'last');
+                    if isfield(tracks,'label')
+                        iColor = mod(tracks(i).label, nColors) + 1;
+                        h(i,3) = text(xData(index,i)+2, yData(index,i)+2, trackNr,...
+                            'Color', obj.Color(iColor,:));
+                    else
+                        h(i,3) = text(xData(index,i)+2, yData(index,i)+2, trackNr,...
+                            'Color', obj.Color);
+                    end
+                end
+            end
+            
+            % Set tag
+            set(h(ishandle(h)), 'Tag', tag);
+           
         end
 
-        function updateDraw(obj,allh,data)
-            tag=get(allh(1),'Tag');
-            nTracks = numel(data.x);
+        function updateDraw(obj, h, data)
+            tag=get(h(1),'Tag');
+            delete(h);
+            obj.initDraw(data,tag);
+            return;
 
-            h=findobj(allh,'Type','line');
-            delete(h(2*nTracks+1:end));
-            h(2*nTracks+1:end)=[];
-            hlinks=findobj(h,'LineStyle',obj.Linestyle);
-            hgaps=findobj(h,'LineStyle',obj.GapLinestyle);
-            
-            % Update existing windows
-            for i=1:min(numel(hlinks),nTracks) 
-                xData= data.x{i}(max(1,end-obj.dragtailLength):end);
-                yData= data.y{i}(max(1,end-obj.dragtailLength):end);
-                set(hgaps(i),'Xdata',xData(~isnan(xData)),'YData',yData(~isnan(yData)));
-                set(hlinks(i),'Xdata',xData,'YData',yData);
-            end
-            for i=min(numel(hlinks),nTracks)+1:nTracks
-                xData= data.x{i}(max(1,end-obj.dragtailLength):end);
-                yData= data.y{i}(max(1,end-obj.dragtailLength):end);
-                hgaps(i)=plot(xData(~isnan(xData)),yData(~isnan(yData)),...
-                    'Linestyle',obj.GapLinestyle','Color',obj.Color);
-                hlinks(i)=plot(xData,yData,...
-                    'Linestyle',obj.Linestyle,'Color',obj.Color);
-            end
-            set([hlinks hgaps],'Tag',tag);
-
-            
-            if isfield(data,'label') && obj.showLabel
-                ht=findobj(allh,'Type','text');
-                delete(ht(nTracks+1:end));
-                ht(nTracks+1:end)=[];
-                for i=1:min(numel(ht),nTracks)
-                    set(ht(i),'Position',[data.x{i}(end),data.y{i}(end)],...
-                        'String',data.label(i));
-                end
-                for i=min(numel(ht),nTracks)+1:nTracks
-                    ht(i) = text(data.x{i}(end),data.y{i}(end),num2str(data.label(i)));
-                end
-                set(ht,'Tag',tag); 
-            end
-           
         end
     end    
     

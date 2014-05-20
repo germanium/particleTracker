@@ -29,6 +29,25 @@ function croppedMovieData = cropMovie(movieData,outputDirectory,varargin)
 %   
 %   additionalFiles - (optional,param/value) a cell array of paths
 %   corresponding to additional images to be cropped using the same region.
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Sebastien Besson, Sep 2011
 
@@ -90,7 +109,8 @@ for i = 1:nChan
     for j= 1:numel(cropTOI)
         tj=cropTOI(j);
         % Read original image, crop it and save it
-        imwrite(imcrop(imread(inImage(i,tj)),cropROI), outImage(i,j));
+        I = movieData.getChannel(i).loadImage(tj);
+        imwrite(imcrop(I,cropROI), outImage(i,j));
         if mod(j,5)==1 && ishandle(wtBar)
             tj=toc;
             nj = (i-1)*numel(cropTOI)+ j;
@@ -130,6 +150,7 @@ croppedMovieData=MovieData(channels,outputDirectory,'movieDataPath_',outputDirec
 s= struct(movieData);
 fields=fieldnames(s);
 set(croppedMovieData,rmfield(s,fields(~moviePublicFields | movieChangedFields)));
+croppedMovieData.reader = []; % Reset reader
 
 % Perform sanityCheck
 croppedMovieData.sanityCheck

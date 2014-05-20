@@ -2,6 +2,25 @@ function icon_ButtonDownFcn(hObject, eventdata)
 % This function call up a help dialog box when user click any of the icons
 % in all GUIs.
 %
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 handles = guidata(hObject);
 
 ud = get(hObject, 'UserData');
@@ -32,7 +51,7 @@ else
     % if called from setting GUI, call user-defined help dialog 'msgboxGUI'
 
     if isfield(userData, 'crtProc')
-        [copyright openHelpFile] = userfcn_softwareConfig(handles);
+        copyright = getLCCBCopyright();
         % Help dialog from setting panel
         if ~isempty(userData.crtProc)
             userData.helpFig = msgboxGUI('Text', sprintf([get(hObject,'UserData'), ...
