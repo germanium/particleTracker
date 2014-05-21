@@ -60,6 +60,8 @@ function [costMat,propagationScheme,kalmanFilterInfoFrame2,nonlinkMarker,...
 %      prevCost               : Structure with fields:
 %             .all                : Matrix of previous linking costs.
 %             .max                : Maximum previous linking cost.
+%             .allAux             : Matrix of previous linking costs for
+%                                   features not linked to current frame.
 %      featLifetime           : Lengths of tracks that features in
 %                               first frame belong to.
 %      trackedFeatureIndx     : The matrix of feature index connectivity up
@@ -88,6 +90,25 @@ function [costMat,propagationScheme,kalmanFilterInfoFrame2,nonlinkMarker,...
 %        1: forward drift, 2: backward drift, 3: zero drift (Brownian).
 %
 %Khuloud Jaqaman, March 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Output
 
@@ -375,14 +396,14 @@ if currentFrame ~= 1 && any(diagnostics == currentFrame)
     %get linking distances
     % jonas, 10/09: fix for non-sparse tracker
     if isstruct(prevCost)
-        prevCostNoCol1 = prevCost.all(:,2:end);
+        prevCostNoCol1 = [prevCost.all(:,2:end); prevCost.allAux(:,2:currentFrame)];
     else
         prevCostNoCol1 = prevCost(:,2:end);
     end
     linkingDistances = sqrt(prevCostNoCol1(~isnan(prevCostNoCol1)));
     
     %plot histogram
-    figure('Name',['frame # ' num2str(currentFrame)],'NumberTitle','off');
+    figure('Name',['frame # ' num2str(currentFrame)]); %,'NumberTitle','off');
     try
         histogram(linkingDistances,[],0);
         xlabel('Linking distance');

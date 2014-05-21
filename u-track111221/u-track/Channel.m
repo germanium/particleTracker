@@ -1,40 +1,54 @@
 classdef Channel < hgsetget
     %  Class definition of channel class
-    properties (SetAccess = protected)
-        psfSigma_                  % standard deviation of the psf
-    end
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
     
     properties
-        
-        % ---- Used Image Parameters ---- %
         excitationWavelength_       % Excitation wavelength (nm)
         emissionWavelength_         % Emission wavelength (nm)
         exposureTime_               % Exposure time (ms)
         imageType_                  % e.g. Widefield, TIRF, Confocal etc.
+        fluorophore_=''               % Fluorophore / Dye (e.g. CFP, Alexa, mCherry etc.)
         
         % ---- Un-used params ---- %
-        
         excitationType_             % Excitation type (e.g. Xenon or Mercury Lamp, Laser, etc)
         neutralDensityFilter_       % Neutral Density Filter
         incidentAngle_              % Incident Angle - for TIRF (degrees)
         filterType_                 % Filter Type
-        fluorophore_=''               % Fluorophore / Dye (e.g. CFP, Alexa, mCherry etc.)
-        
+        hcsPlatestack_              % HCS plate file names stack
+        hcsFlags_  % HCS plate well imaged indicator in cell one, 
+        %HCS plate site indicator in second cell HCS plate wavelength names
+        %in the third cell
     end
     
     properties(SetAccess=protected)
-        % ---- Object Params ---- %
+        psfSigma_                   % Standard deviation of the psf
         channelPath_                % Channel path (directory containing image(s))
         owner_                      % MovieData object which owns this channel
     end
     
     properties(Transient=true)
-        displayMethod_  = ImageDisplay;
-        fileNames_;
+        displayMethod_  = ImageDisplay; % Method to display the object content
     end
     
     methods
-        
         function obj = Channel(channelPath, varargin)
             % Constructor of channel object
             %
@@ -44,9 +58,7 @@ classdef Channel < hgsetget
             %    'PropertyName',propertyValue - A string with an valid channel property followed by the
             %    value.
             
-            if nargin>0
-                obj.channelPath_ = channelPath;
-                
+            if nargin>0                
                 % Construct the Channel object
                 nVarargin = numel(varargin);
                 if nVarargin > 1 && mod(nVarargin,2)==0
@@ -54,16 +66,42 @@ classdef Channel < hgsetget
                         obj.(varargin{i}) = varargin{i+1};
                     end
                 end
+                if isprop(obj,'hcsPlatestack_')
+                    if obj.hcsPlatestack_ == 1
+                        [wellf, sitef, waveln,hcsPlatestack] = readIXMHTDFileM(channelPath);
+                        file_lists = dir(fullfile(channelPath, '*.TIF'));
+                        file_lists_thumb = dir(fullfile(channelPath, '*Thumb.TIF'));
+                        if length(file_lists_thumb) == length(file_lists)/2
+                            file_lists = file_lists(1:2:length(file_lists));
+                        end
+                        if length(file_lists) ~= size(hcsPlatestack{1},1)*size(hcsPlatestack{1},2)*length(hcsPlatestack{1}{1,1})*length(waveln) ||...
+                                strcmp(hcsPlatestack{1}{1,1}{1}(1:5),file_lists(2).name(1:5)) ~= 1
+                            warndlg('File Miss Match!, rebuilding plate stack...');
+                            [hcsPlatestack] = HCSplatestack(channelPath);
+                        end
+                        if isempty(hcsPlatestack)
+                            h = errordlg('No HCS data detected, please uncheck HCS data box');
+                            return;
+                        end
+                        for ich = 1:size(hcsPlatestack, 2)
+                            obj(ich).channelPath_ = channelPath;
+                            obj(ich).hcsPlatestack_ = hcsPlatestack{ich};
+                            obj(ich).hcsFlags_.wellF = wellf;
+                            obj(ich).hcsFlags_.siteF = sitef;
+                            obj(ich).hcsFlags_.wN = waveln(ich);
+                            %obj(ich).hcsFlags_.startI = starti;
+                            %obj(ich).hcsFlags_.swI = startsw;
+                        end
+                    else
+                        obj.channelPath_ = channelPath;
+                    end
+                else
+                    obj.channelPath_ = channelPath;
+                end
             end
         end
         
-        % ------- Set / Get Methods ----- %
-        
-        function set.channelPath_(obj,value)
-            obj.checkPropertyValue('channelPath_',value);
-            obj.channelPath_=value;
-        end
-        
+        %% Set / Get Methods
         function set.excitationWavelength_(obj, value)
             obj.checkPropertyValue('excitationWavelength_',value);
             obj.excitationWavelength_=value;
@@ -94,6 +132,11 @@ classdef Channel < hgsetget
             obj.incidentAngle_=value;
         end
         
+        function set.imageType_(obj, value)
+            obj.checkPropertyValue('imageType_',value);
+            obj.imageType_=value;
+        end
+        
         function set.filterType_(obj, value)
             obj.checkPropertyValue('filterType_',value);
             obj.filterType_=value;
@@ -104,38 +147,43 @@ classdef Channel < hgsetget
             obj.fluorophore_=value;
         end
         
-        function set.owner_(obj,value)
-            obj.checkPropertyValue('owner_',value);
-            obj.owner_=value;
-        end
         
         function setFig = edit(obj)
             setFig = channelGUI(obj);
         end
         
         function relocate(obj,oldRootDir,newRootDir)
-            
-            % Relocate channel path
+            % Relocate location of the  channel object
             obj.channelPath_=  relocatePath(obj.channelPath_,oldRootDir,newRootDir);
-            
         end
         
         function checkPropertyValue(obj,property, value)
             % Check if a property/value pair can be set up
+            
+            % Return if unchanged property
             if isequal(obj.(property),value), return; end
+            propName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
             
-            if  ~isempty(obj.(property)),
-                % Test if the property is writable
-                if ~obj.checkProperty(property)
-                    propertyName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
-                    error(['The channel''s ' propertyName ' has been set previously and cannot be changed!']);
+            % Test if the property is writable
+            assert(obj.checkProperty(property),'lccb:set:readonly',...
+                ['The channel''s ' propName ' has been set previously and cannot be changed!']);
+            
+            % Test if the supplied value is valid
+            assert(obj.checkValue(property,value),'lccb:set:invalid',...
+                ['The supplied ' propName ' is invalid!']);
+        end
+        
+        
+        function status = checkProperty(obj,property)
+            % Returns true/false if the non-empty property is writable
+            status = isempty(obj.(property));
+            if status, return; end
+            
+            if strcmp(property,'channelPath_');
+                stack = dbstack;
+                if any(cellfun(@(x)strcmp(x,'Channel.relocate'),{stack.name})),
+                    status  =true;
                 end
-            end
-            
-            % Test if the value is valid
-            if ~obj.checkValue(property,value)
-                propertyName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
-                error(['The supplied ' propertyName ' is invalid!']);
             end
         end
         
@@ -144,72 +192,90 @@ classdef Channel < hgsetget
         %properties of the channel
         
         function [width height nFrames] = sanityCheck(obj,varargin)
+            % Check the sanity of the channels
+            %
             % Check the validity of each channel and return pixel size and time
             % interval parameters
             
             % Check input
             ip = inputParser;
-            ip.addRequired('obj',@(x) isa(x,'Channel'));
             ip.addOptional('owner',obj.owner_,@(x) isa(x,'MovieData'));
-            ip.parse(obj,varargin{:})
-            obj.owner_=ip.Results.owner;
+            ip.parse(varargin{:})
             
-            % Exception: channel path does not exist
-            assert(logical(exist(obj.channelPath_, 'dir')), ...
-                'Channel path specified is not a valid directory! Please double check the channel path!')
+            % Set the channel owner
+            if isempty(obj.owner_), obj.owner_=ip.Results.owner; end
+            assert(isequal(obj.owner_,ip.Results.owner) ||...
+                isequal(obj.owner_,ip.Results.owner.parent_),...
+                'The channel''s owner is not the movie neither its parent')
             
-            % Check the number of file extensions
-            [fileNames nofExt] = imDir(obj.channelPath_,true);
-            switch nofExt
-                case 0
-                    % Exception: No proper image files are detected
-                    error('No proper image files are detected in:\n\n%s\n\nValid image file extension: tif, TIF, STK, bmp, BMP, jpg, JPG.',obj.channelPath_);
-                    
-                case 1
-                    nFrames = length(fileNames);
-                otherwise
-                    % Exception: More than one type of image
-                    % files are in the current specific channel
-                    error('More than one type of image files are found in:\n\n%s\n\nPlease make sure all images are of same type.', obj.channelPath_);
+            % Get the size along the X,Y and T dimensions
+            width = obj.getReader().getSizeX(obj.getChannelIndex());
+            height = obj.getReader().getSizeY(obj.getChannelIndex());
+            nFrames = obj.getReader().getSizeT(obj.getChannelIndex());
+            
+            if isempty(obj.psfSigma_) && ~isempty(obj.owner_), obj.calculatePSFSigma(); end
+        end
+        
+        function iChan = getChannelIndex(obj)
+            if ~isempty(obj.owner_)
+                iChan = find(obj.owner_.channels_ == obj, 1);
+            else
+                iChan = 1;
             end
-            
-            % Check the consistency of image size in current channel
-            imInfo = arrayfun(@(x)imfinfo([obj.channelPath_ filesep x.name]),...
-                fileNames, 'UniformOutput', false);
-            width = unique(cellfun(@(x)(x.Width), imInfo));
-            height = unique(cellfun(@(x)(x.Height), imInfo));
-            
-            % Exception: Image sizes are inconsistent in the
-            % current channel.
-            assert(isscalar(width) && isscalar(height),...
-                ['Image sizes are inconsistent in: \n\n%s\n\n'...
-                'Please make sure all the images have the same size.'],obj.channelPath_);
-            obj.fileNames_ = arrayfun(@(x) x.name,fileNames,'UniformOutput',false);
-
-            if isempty(obj.psfSigma_) && ~isempty(obj.owner_)
-                obj.calculatePSFSigma();
-            end
-            
         end
         
         function fileNames = getImageFileNames(obj,iFrame)
-            if ~isempty(obj.fileNames_)
-                fileNames = obj.fileNames_;
-            else                
-                fileNames = arrayfun(@(x) x.name,imDir(obj.channelPath_),...
-                    'UniformOutput',false);
-            end
-            if nargin>1
-                fileNames=fileNames{iFrame};
-            end
-        end
-        
-        function data = loadImage(obj,iFrame)
-            data = double(imread([obj.channelPath_ filesep obj.fileNames_{iFrame}]));
-        end
-        
-        function color = getColor(obj)
             
+            fileNames = obj.getReader.getImageFileNames(obj.getChannelIndex());
+            if nargin>1, fileNames=fileNames(iFrame); end
+        end
+        
+        function Gname = getGenericName(obj, oFileName, flag) %oFileName is either from getImagesFiles or from hcsplatestack
+%             starti = obj.hcsFlags_.startI;
+%             startsw = obj.hcsFlags_.swI;   
+            [starti, startsw] = getindexstart(oFileName);
+            if min(abs(str2double(oFileName(min(startsw)+2))-(0:9))) == 0
+                adi = 1;
+            else
+                adi = 0;
+            end
+            if nargin > 2 && strcmp(flag, 'well_on') == 1
+            Gname = oFileName(starti:max(startsw)+adi);
+            elseif nargin > 2 && strcmp(flag, 'site_on') == 1
+                Gname = oFileName(starti:min(startsw)+1+adi);
+            else
+                Gname = oFileName(starti:starti+2);
+            end           
+        end
+        
+        function I = loadImage(obj, iFrame)
+            
+            % Initialize image
+            I = obj.getReader().loadImage(obj.getChannelIndex(), iFrame);
+        end
+        
+        %% Bio-formats/OMERO functions
+        function status = isOmero(obj)
+            status = ~isempty(obj.owner_) && obj.owner_.isOmero();
+        end
+        
+        function status = isBF(obj)
+            status = ~isempty(obj.owner_) && obj.owner_.isBF();
+        end
+        
+        function r = getReader(obj)
+            if ~isempty(obj.owner_),
+                r = obj.owner_.getReader();
+            elseif ~isempty(obj.hcsPlatestack_),
+                    r = HCSReader(obj);                    
+            else
+                r = TiffSeriesReader({obj.channelPath_});
+            end
+        end
+        
+        
+        %% Display functions
+        function color = getColor(obj)
             if ~isempty(obj.emissionWavelength_),
                 color = wavelength2rgb(obj.emissionWavelength_*1e-9);
             else
@@ -227,20 +293,18 @@ classdef Channel < hgsetget
             ip.KeepUnmatched = true;
             ip.parse(obj,iFrame,varargin{:})
             
+            % Initialize output
+            if numel(obj)>1, zdim=3; else zdim=1; end
+            data = zeros([obj(1).owner_.imSize_ zdim]);
             
-            if numel(obj)>1
-                % Multi-channel display
-                data = zeros([obj(1).owner_.imSize_ 3]);
-            else
-                data = zeros([obj(1).owner_.imSize_]);
-            end  
+            % Fill output
             for iChan=1:numel(obj)
-                data(:,:,iChan)=scaleContrast(obj(iChan).loadImage(iFrame),[],[0 1]);
+                data(:,:,iChan)=mat2gray(obj(iChan).loadImage(iFrame));
             end
             drawArgs=reshape([fieldnames(ip.Unmatched) struct2cell(ip.Unmatched)]',...
                 2*numel(fieldnames(ip.Unmatched)),1);
             h = obj(1).displayMethod_.draw(data,'channels','hAxes',ip.Results.hAxes,drawArgs{:});
-        end          
+        end
     end
     
     methods(Access=protected)
@@ -249,62 +313,55 @@ classdef Channel < hgsetget
             emissionWavelength=obj.emissionWavelength_*1e-9;
             numAperture=obj.owner_.numAperture_;
             pixelSize=obj.owner_.pixelSize_*1e-9;
-            if isempty(emissionWavelength) || isempty(numAperture) || isempty(pixelSize), 
-                return; 
+            if isempty(emissionWavelength) || isempty(numAperture) || isempty(pixelSize),
+                return;
             end
             
             obj.psfSigma_ = getGaussianPSFsigma(numAperture,1,pixelSize,emissionWavelength);
-%             obj.psfSigma_ =.21*obj.emissionWavelength/(numAperture*pixelSize);
-
+            % obj.psfSigma_ =.21*obj.emissionWavelength/(numAperture*pixelSize);
+            
         end
     end
     methods(Static)
-        function status = checkProperty(property)
-            % Returns true/false if the non-empty property is writable
-            status = false;
-            if strcmp(property,'channelPath_');
-                stack = dbstack;
-                if any(cellfun(@(x)strcmp(x,'Channel.relocate'),{stack.name})),
-                    status  =true;
-                end
-            end
-        end
-        
-        function checkValue=checkValue(property,value)
-            % Test the validity of a property value
-            %
-            % Declared as a static method so that the method can be called
-            % without instantiating a Channel object. Should be called
-            % by any generic set method.
-            %
-            % INPUT:
-            %    property - a Channel property name (string)
-            %
-            %    value - the property value to be checked
-            %
-            % OUTPUT:
-            %    checkValue - a boolean containing the result of the test
+        function status=checkValue(property,value)
+            % Return true/false if the value for a given property is valid
             
+            % Parse input
+            ip = inputParser;
+            ip.addRequired('property',@(x) ischar(x) || iscell(x));
+            ip.parse(property);
             if iscell(property)
-                checkValue=cellfun(@(x,y) Channel.checkValue(x,y),property,value);
+                ip.addRequired('value',@(x) iscell(x)&&isequal(size(x),size(property)));
+                ip.parse(property,value);
+                status=cellfun(@(x,y) Channel.checkValue(x,y),property,value);
                 return
             end
             
+            % Get validator for single property
+            validator=Channel.getPropertyValidator(property);
+            propName = regexprep(regexprep(property,'(_\>)',''),'([A-Z])',' ${lower($1)}');
+            assert(~isempty(validator),['No validator defined for property ' propName]);
+            
+            % Return result of validation
+            status = isempty(value) || validator(value);
+        end
+        
+        function validator = getPropertyValidator(property)
             switch property
                 case {'emissionWavelength_','excitationWavelength_'}
-                    checkTest=@(x) isnumeric(x) && x>=300 && x<=800;
+                    validator=@(x) isscalar(x) && x>=300 && x<=800;
                 case 'exposureTime_'
-                    checkTest=@(x) isnumeric(x) && x>0;
+                    validator=@(x) isscalar(x) && x>0;
                 case {'excitationType_','notes_','channelPath_','filterType_'}
-                    checkTest=@(x) ischar(x);
+                    validator=@ischar;
                 case 'imageType_'
-                    checkTest = @(x) any(strcmpi(x,Channel.getImagingModes));
+                    validator = @(x) ischar(x) && ismember(x,Channel.getImagingModes);
                 case {'fluorophore_'}
-                    checkTest= @(x)  any(strcmpi(x,Channel.getFluorophores));
-                case {'owner_'}
-                    checkTest= @(x) isa(x,'MovieData');
+                    validator= @(x) ischar(x) && ismember(x,Channel.getFluorophores);
+                otherwise
+                    validator=[];
             end
-            checkValue = isempty(value) || checkTest(value);
+            
         end
         
         function modes=getImagingModes()
@@ -315,6 +372,5 @@ classdef Channel < hgsetget
             fluorPropStruct= getFluorPropStruct();
             fluorophores={fluorPropStruct.name};
         end
-        
     end
 end

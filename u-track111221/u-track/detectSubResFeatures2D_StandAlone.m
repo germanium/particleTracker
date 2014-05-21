@@ -1,5 +1,5 @@
 function [movieInfo,exceptions,localMaxima,background,psfSigma] = ...
-    detectSubResFeatures2D_StandAlone(movieParam,detectionParam,saveResults)
+    detectSubResFeatures2D_StandAlone(movieParam,detectionParam,saveResults,verbose)
 %DETECTSUBRESFEATURES2D_STANDALONE detects subresolution features in a series of images
 %
 %SYNOPSIS [movieInfo,exceptions,localMaxima,background,psfSigma] = ...
@@ -71,6 +71,8 @@ function [movieInfo,exceptions,localMaxima,background,psfSigma] = ...
 %           .filename     : Name of file where results should be saved.
 %                           Optional. Default: detectedFeatures.
 %                       Whole structure optional.
+%       verbose       : 1 to show progress while running, 0 otherwise.
+%                       Optional. Default: 1.
 %
 %       All optional variables can be entered as [] to use default values.
 %
@@ -120,6 +122,25 @@ function [movieInfo,exceptions,localMaxima,background,psfSigma] = ...
 %       errFlag       : 0 if function executes normally, 1 otherwise.
 %
 %Khuloud Jaqaman, September 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Output
 
@@ -138,11 +159,16 @@ if nargin < 2
 end
 
 %get movie parameters
-imageDir = movieParam.imageDir;
-filenameBase = movieParam.filenameBase;
+hasImageDir = isfield(movieParam,'imageDir');
+if hasImageDir
+    imageDir = movieParam.imageDir;
+    filenameBase = movieParam.filenameBase;
+    digits4Enum = movieParam.digits4Enum;
+else
+    channel = movieParam.channel;
+end
 firstImageNum = movieParam.firstImageNum;
 lastImageNum = movieParam.lastImageNum;
-digits4Enum = movieParam.digits4Enum;
 
 %get initial guess of PSF sigma
 psfSigma = detectionParam.psfSigma;
@@ -242,11 +268,18 @@ else
     end
 end
 
-%store the string version of the numerical index of each image
-enumString = repmat('0',lastImageNum,digits4Enum);
-formatString = ['%0' num2str(digits4Enum) 'i'];
-for i=1:lastImageNum
-    enumString(i,:) = num2str(i,formatString);
+%check verbose state
+if nargin < 4 || isempty(verbose)
+    verbose = 1;
+end
+
+if hasImageDir
+    %store the string version of the numerical index of each image
+    enumString = repmat('0',lastImageNum,digits4Enum);
+    formatString = ['%0' num2str(digits4Enum) 'i'];
+    for i=1:lastImageNum
+        enumString(i,:) = num2str(i,formatString);
+    end
 end
 
 %initialize some variables
@@ -264,21 +297,27 @@ imageIndx = firstImageNum : lastImageNum;
 numImagesRaw = lastImageNum - firstImageNum + 1; %raw images
 numImagesInteg = repmat(numImagesRaw,1,numIntegWindow) - 2 * integWindow; %integrated images
 
-%read first image and get image size
-if exist([imageDir filenameBase enumString(imageIndx(1),:) '.tif'],'file')
-    imageTmp = imread([imageDir filenameBase enumString(imageIndx(1),:) '.tif']);
+if hasImageDir
+    %read first image and get image size
+    if exist([imageDir filenameBase enumString(imageIndx(1),:) '.tif'],'file')
+        imageTmp = imread([imageDir filenameBase enumString(imageIndx(1),:) '.tif']);
+    else
+        disp('First image does not exist! Exiting ...');
+        return
+    end
+    [imageSizeX,imageSizeY] = size(imageTmp);
+    clear imageTmp
 else
-    disp('First image does not exist! Exiting ...');
-    return
+    imageSizeX=channel.owner_.imSize_(1);
+    imageSizeY=channel.owner_.imSize_(2);
 end
-[imageSizeX,imageSizeY] = size(imageTmp);
-clear imageTmp
-
 %check which images exist and which don't
-imageExists = zeros(numImagesRaw,1);
-for iImage = 1 : numImagesRaw
-    if exist([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif'],'file')
-        imageExists(iImage) = 1;
+imageExists = true(numImagesRaw,1);
+if hasImageDir
+    for iImage = 1 : numImagesRaw
+        if ~exist([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif'],'file')
+            imageExists(iImage) = 0;
+        end
     end
 end
 
@@ -288,11 +327,14 @@ i = 0;
 imageLast5 = NaN(imageSizeX,imageSizeY,5);
 for iImage = last5start : numImagesRaw
     i = i + 1;
-    if imageExists(iImage)
-        imageLast5(:,:,i) = imread([imageDir filenameBase ...
-            enumString(imageIndx(iImage),:) '.tif']);
+    if imageExists(iImage) && hasImageDir
+        imageLast5(:,:,i) = double(imread([imageDir filenameBase ...
+            enumString(imageIndx(iImage),:) '.tif']));
+    elseif ~hasImageDir
+        imageLast5(:,:,i) = double(channel.loadImage(imageIndx(iImage)));
     end
 end
+
 imageLast5 = double(imageLast5) / (2^bitDepth-1);
 imageLast5(imageLast5==0) = NaN;
 [bgMeanRaw,bgStdRaw] = spatialMovAveBG(imageLast5,imageSizeX,imageSizeY);
@@ -311,16 +353,20 @@ localMaxima = repmat(struct('cands',[]),numImagesRaw,1);
 for iWindow = 1 : numIntegWindow
     
     %initialize progress text
-    progressText(0,['Detecting local maxima with integration window = ' num2str(integWindow(iWindow))]);
+    if verbose
+        progressText(0,['Detecting local maxima with integration window = ' num2str(integWindow(iWindow))]);
+    end
     
     for iImage = 1 : numImagesInteg(iWindow)
         
         %store raw images in array
         imageRaw = NaN(imageSizeX,imageSizeY,1+2*integWindow(iWindow));
         for jImage = 1 : 1 + 2*integWindow(iWindow)
-            if imageExists(jImage+iImage-1)
+            if hasImageDir && imageExists(jImage+iImage-1)
                 imageRaw(:,:,jImage) = double(imread([imageDir filenameBase ...
                     enumString(imageIndx(jImage+iImage-1),:) '.tif']));
+            elseif ~hasImageDir
+                imageRaw(:,:,jImage) = double(channel.loadImage(imageIndx(jImage+iImage-1)));
             end
         end
         
@@ -450,7 +496,9 @@ for iWindow = 1 : numIntegWindow
         end
         
         %display progress
-        progressText(iImage/numImagesInteg(iWindow),['Detecting local maxima with integration window = ' num2str(integWindow(iWindow))]);
+        if verbose
+            progressText(iImage/numImagesInteg(iWindow),['Detecting local maxima with integration window = ' num2str(integWindow(iWindow))]);
+        end
         
     end %(for iImage = 1 : numImagesInteg(iWindow))
     
@@ -486,7 +534,9 @@ for iFrame = (find(imageExists==0))'
 end
 
 %go over all frames, remove redundant cands, and register empty frames
-progressText(0,'Removing redundant local maxima');
+if verbose
+    progressText(0,'Removing redundant local maxima');
+end
 for iImage = 1 : numImagesRaw
     
     %get the cands of this frame
@@ -584,7 +634,9 @@ for iImage = 1 : numImagesRaw
     end
     
     %display progress
-    progressText(iImage/numImagesRaw,'Removing redundant local maxima');
+    if verbose
+        progressText(iImage/numImagesRaw,'Removing redundant local maxima');
+    end
     
 end
 
@@ -626,20 +678,26 @@ if numSigmaIter
         psfSigma5 = ceil(5*psfSigma0);
         
         %initialize progress display
-        switch numIter
-            case 1
-                progressText(0,'Estimating PSF sigma');
-            otherwise
-                progressText(0,'Repeating PSF sigma estimation');
+        if verbose
+            switch numIter
+                case 1
+                    progressText(0,'Estimating PSF sigma');
+                otherwise
+                    progressText(0,'Repeating PSF sigma estimation');
+            end
         end
         
         %go over the first 50 good images and find isolated features
         images2use = goodImages(1:min(50,numGoodImages));
         images2use = setdiff(images2use,1:integWindow);
-        for iImage = images2use
+        for iImage = images2use(:)'
             
             %read raw image
-            imageRaw = imread([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif']);
+            if hasImageDir
+                imageRaw = imread([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif']);                
+            else
+                imageRaw= channel.loadImage(imageIndx(iImage));
+            end
             imageRaw = double(imageRaw) / (2^bitDepth-1);
             
             %get feature positions and amplitudes and average background
@@ -732,11 +790,13 @@ if numSigmaIter
             end %(if numFeats >= 1)
             
             %display progress
-            switch numIter
-                case 1
-                    progressText(iImage/max(images2use),'Estimating PSF sigma');
-                otherwise
-                    progressText(iImage/max(images2use),'Repeating PSF sigma estimation');
+            if verbose
+                switch numIter
+                    case 1
+                        progressText(iImage/max(images2use),'Estimating PSF sigma');
+                    otherwise
+                        progressText(iImage/max(images2use),'Repeating PSF sigma estimation');
+                end
             end
             
         end %(for iImage = images2use)
@@ -785,17 +845,23 @@ clear movieInfo
 movieInfo = repmat(struct('xCoord',[],'yCoord',[],'amp',[]),numImagesRaw,1);
 
 %initialize progress display
-if strcmp(calcMethod,'g')
-    progressText(0,'Mixture-model fitting');
-else
-    progressText(0,'Centroid calculation');
+if verbose
+    if strcmp(calcMethod,'g')
+        progressText(0,'Mixture-model fitting');
+    else
+        progressText(0,'Centroid calculation');
+    end
 end
 
 %go over all non-empty images ...
-for iImage = goodImages
+for iImage = goodImages(:)'
     
     %read raw image
-    imageRaw = imread([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif']);
+    if hasImageDir
+        imageRaw = imread([imageDir filenameBase enumString(imageIndx(iImage),:) '.tif']);
+    else
+        imageRaw = channel.loadImage(imageIndx(iImage));
+    end
     imageRaw = double(imageRaw) / (2^bitDepth-1);
     
     try %try to detect features in this frame
@@ -830,10 +896,12 @@ for iImage = goodImages
     end
     
     %display progress
-    if strcmp(calcMethod,'g')
-        progressText(iImage/numImagesRaw,'Mixture-model fitting');
-    else
-        progressText(iImage/numImagesRaw,'Centroid calculation');
+    if verbose
+        if strcmp(calcMethod,'g')
+            progressText(iImage/numImagesRaw,'Mixture-model fitting');
+        else
+            progressText(iImage/numImagesRaw,'Centroid calculation');
+        end
     end
     
 end

@@ -19,6 +19,25 @@ function varargout = cropMovieGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help cropMovieGUI
 
@@ -63,29 +82,26 @@ userData.MD =ip.Results.MD;
 userData.mainFig =ip.Results.mainFig;
         
 % Set up copyright statement
-set(handles.text_copyright, 'String',userfcn_softwareConfig(handles));
+set(handles.text_copyright, 'String', getLCCBCopyright());
 
 % Set up available input channels
 set(handles.listbox_selectedChannels,'String',userData.MD.getChannelPaths(), ...
     'UserData',1:numel(userData.MD.channels_));
 
 % Save the image directories and names (for cropping preview)
-userData.imageFileNames = userData.MD.getImageFileNames();
-userData.imDirs  = userData.MD.getChannelPaths();
 userData.nFrames = userData.MD.nFrames_;
 userData.imRectHandle.isvalid=0;
 userData.cropROI = [1 1 userData.MD.imSize_(end:-1:1)];
 userData.previewFig=-1;
 
 % Read the first image and update the sliders max value and steps
-props = get(handles.listbox_selectedChannels, {'String','Value'});
-userData.chanIndx = find(strcmp(props{1}{props{2}},userData.imDirs));
+props = get(handles.listbox_selectedChannels, {'UserData','Value'});
+userData.chanIndx = props{1}(props{2});
 set(handles.edit_frameNumber,'String',1);
 set(handles.slider_frameNumber,'Min',1,'Value',1,'Max',userData.nFrames,...
-    'SliderStep',[1/double(userData.nFrames-1)  10/double(userData.nFrames-1)]);
+    'SliderStep',[1/max(1,double(userData.nFrames-1))  10/max(1,double(userData.nFrames-1))]);
 userData.imIndx=1;
-userData.imData=mat2gray(imread([userData.imDirs{userData.chanIndx} filesep...
-        userData.imageFileNames{userData.chanIndx}{userData.imIndx}]));
+userData.imData=mat2gray(userData.MD.channels_(userData.chanIndx).loadImage(userData.imIndx));
     
 set(handles.listbox_selectedChannels,'Callback',@(h,event) update_data(h,event,guidata(h)));
 set(handles.edit_firstFrame,'String',1);
@@ -148,15 +164,14 @@ function update_data(hObject, eventdata, handles)
 userData = get(handles.figure1, 'UserData');
 
 % Retrieve the channel index
-props=get(handles.listbox_selectedChannels,{'String','Value'});
-chanIndx = find(strcmp(props{1}{props{2}},userData.imDirs));
+props=get(handles.listbox_selectedChannels,{'UserData','Value'});
+chanIndx = props{1}(props{2});
 imIndx = get(handles.slider_frameNumber,'Value');
 
 % Load a new image if either the image number or the channel has been changed
 if (chanIndx~=userData.chanIndx) ||  (imIndx~=userData.imIndx)
     % Update image flag and dat
-    userData.imData=mat2gray(imread([userData.imDirs{chanIndx} filesep...
-        userData.imageFileNames{chanIndx}{imIndx}]));
+    userData.imData=mat2gray(userData.MD.channels_(chanIndx).loadImage(imIndx));
     userData.updateImage=1;
     userData.chanIndx=chanIndx;
     userData.imIndx=imIndx;
@@ -321,32 +336,15 @@ MD = cropMovie(userData.MD,outputDirectory,'cropROI',userData.cropROI,...
 if userData.mainFig ~=-1, 
     % Retrieve main window userData
     userData_main = get(userData.mainFig, 'UserData');
-    handles_main = guidata(userData.mainFig);
-    
-    % Check if files in movie list are saved in the same file
-    contentlist = get(handles_main.listbox_movie, 'String');
-    movieDataFullPath = [MD.movieDataPath_ filesep MD.movieDataFileName_];
-    if any(strcmp(movieDataFullPath, contentlist))
-        errordlg('Cannot overwrite a movie data file which is already in the movie list. Please choose another file name or another path.','Error','modal');
-        return
-    end
-    
-    % Append  MovieData object to movie selector panel
-    userData_main.MD = cat(2, userData_main.MD, MD);
-    
-    % Refresh movie list box in movie selector panel
-    contentlist{end+1} = movieDataFullPath;
-    nMovies = length(contentlist);
-    set(handles_main.listbox_movie, 'String', contentlist, 'Value', nMovies)
-    title = sprintf('Movie List: %s/%s movie(s)', num2str(nMovies), num2str(nMovies));
-    set(handles_main.text_movie_1, 'String', title)
-    
-    % Save the main window data
+
+    % Append new ROI to movie selector panel
+    userData_main.MD = horzcat(userData_main.MD, MD);
     set(userData.mainFig, 'UserData', userData_main)
+    movieSelectorGUI('refreshDisplay',userData.mainFig,...
+        eventdata,guidata(userData.mainFig));
 end
 % Delete current window
 delete(handles.figure1)
-
 
 function edit_firstFrame_Callback(hObject, eventdata, handles)
 userData = get(handles.figure1, 'UserData');

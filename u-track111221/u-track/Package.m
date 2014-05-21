@@ -1,6 +1,25 @@
 classdef Package < hgsetget 
     % Defines the abstract class Package from which every user-defined packages
     % will inherit. This class cannot be instantiated.
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
     properties(SetAccess = protected)
         createTime_ % The time when object is created.
@@ -150,6 +169,11 @@ classdef Package < hgsetget
             procID = ip.Results.procID;
             if strcmp(procID,'all'), procID = 1:nProc;end
             
+            % Allow dynamic package extension
+            if nProc>numel(obj.processes_), 
+                obj.processes_{numel(obj.processes_)+1:nProc}=deal([]); 
+            end
+            
             % Check processes are consistent with process class names
             assert(isequal(nProc,numel(obj.processes_)),'Wrong number of processes');
             validProc = procID(~cellfun(@isempty,obj.processes_(procID)));
@@ -205,6 +229,21 @@ classdef Package < hgsetget
             
         end
         
+        function process = getProcess(obj, i)
+            assert(isscalar(i) && ismember(i, 1:numel(obj.processes_)));
+            process = obj.processes_{i};
+        end
+        
+        function createDefaultProcess(obj, i)
+            % Create ith process using default constructor
+            assert(isempty(obj.processes_{i}),'Process already exists');
+            newprocess=obj.getDefaultProcessConstructors{i}(obj.owner_,obj.outputDirectory_);
+            obj.owner_.addProcess(newprocess);
+            obj.setProcess(i,newprocess);
+            % Run sanityCheck to set process dependencies
+            obj.sanityCheck(); 
+        end
+        
         function setProcess(obj, i, newProcess)
             % set the i th process of obj.processes_ to newprocess
             % If newProcess = [ ], clear the process in package process
@@ -240,6 +279,9 @@ classdef Package < hgsetget
     methods(Static)
         function tools = getTools()
             tools=[];
+        end
+        function class = getMovieClass()
+            class = 'MovieData';
         end
     end 
 

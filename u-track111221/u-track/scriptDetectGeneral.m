@@ -1,4 +1,7 @@
-% Copyright (C) 2011 LCCB 
+
+%% movie information
+%
+% Copyright (C) 2014 LCCB 
 %
 % This file is part of u-track.
 % 
@@ -16,79 +19,40 @@
 % along with u-track.  If not, see <http://www.gnu.org/licenses/>.
 % 
 % 
-%% movie information
-
-movieParam.imageDir = '???/example/images/'; %directory where images are
-movieParam.filenameBase = 'crop_071017_37CLNB_'; %image file name base
-movieParam.firstImageNum = 1; %number of first image in movie
-movieParam.lastImageNum = 40; %number of last image in movie
-movieParam.digits4Enum = 4; %number of digits used for frame enumeration (1-4).
+movieParam.imageDir = 'C:\kjData\Galbraiths\data\alphaVY773AandCellEdge\131202\imagesAlphaVY773A\'; %directory where images are
+movieParam.filenameBase = '131202_Cs3C1_CHO_Y773A_'; %image file name base
+movieParam.firstImageNum = 100; %number of first image in movie
+movieParam.lastImageNum = 150; %number of last image in movie
+movieParam.digits4Enum = 5; %number of digits used for frame enumeration (1-4).
 
 %% detection parameters
+detectionParam.psfSigma = 1.2; %point spread function sigma (in pixels)
+detectionParam.testAlpha = struct('alphaR',0.05,'alphaA',0.05,'alphaD',0.05,'alphaF',0); %alpha-values for detection statistical tests
+detectionParam.visual = 0; %1 to see image with detected features, 0 otherwise
+detectionParam.doMMF = 1; %1 if mixture-model fitting, 0 otherwise
+detectionParam.bitDepth = 16; %Camera bit depth
+detectionParam.alphaLocMax = 0.1; %alpha-value for initial detection of local maxima
+detectionParam.numSigmaIter = 0; %maximum number of iterations for PSF sigma estimation
+detectionParam.integWindow = 0; %number of frames before and after a frame for time integration
 
-%Camera bit-depth
-detectionParam.bitDepth = 16;
+detectionParam.calcMethod = 'g';
 
-%The standard deviation of the point spread function is defined
-%as 0.21*(emission wavelength)/(numerical aperture). If the wavelength is
-%given in nanometers, this will be in nanometers. To convert to pixels,
-%divide by the pixel side length (which should also be in nanometers).
-detectionParam.psfSigma = 1.7;
+%absolute background info and parameters...
+background.imageDir = 'C:\kjData\Galbraiths\data\alphaVY773AandCellEdge\131202\bgAlphaVY773A\';
+background.filenameBase = 'crop_131202_Cs3C1_CHO_Y773A_';
+background.alphaLocMaxAbs = 0.01;
+detectionParam.background = background;
 
-%Number of frames before and after a frame for time averaging
-%For no time averaging, set to 0
-detectionParam.integWindow = 1;
+%% additional input
 
-%Alpha-value for initial detection of local maxima
-detectionParam.alphaLocMax = 0.1;
+%saveResults
+saveResults.dir = 'C:\kjData\Galbraiths\data\alphaVY773AandCellEdge\131202\analysisAlphaVY773A\'; %directory where to save input and output
+saveResults.filename = 'detectionTest1.mat'; %name of file where input and output are saved
+% saveResults = 0;
 
-%Maximum number of iterations for PSF sigma estimation for detected local
-%maxima
-%To use the input sigma without modification, set to 0
-detectionParam.numSigmaIter = 10;
-
-%1 to attempt to fit more than 1 kernel in a local maximum, 0 to fit only 1
-%kernel per local maximum
-%If psfSigma is < 1 pixel, set doMMF to 0, not 1. There is no point
-%in attempting to fit additional kernels in one local maximum under such
-%low spatial resolution
-detectionParam.doMMF = 1;
-
-%Alpha-values for statistical tests in mixture-model fitting step
-detectionParam.testAlpha = struct('alphaR',0.05,'alphaA',0.05,'alphaD',0.05,'alphaF',0);
-
-%1 to visualize detection results, frame by frame, 0 otherwise. Use 1 only
-%for small movies. In the resulting images, blue dots indicate local
-%maxima, red dots indicate local maxima surviving the mixture-model fitting
-%step, pink dots indicate where red dots overlap with blue dots
-detectionParam.visual = 0;
-
-%absolute background information and parameters...
-%(for not using this section, simply comment it out, as supplied by default)
-% background.imageDir = ???; %directory where background images are, in the same format as movieParam.imageDir
-% background.filenameBase = ???; %background image file name base. NOTE: There must be a background image for each image to be analyzed
-% background.alphaLocMaxAbs = 0.001; %alpha-value for comparison of local maxima to absolute background
-% detectionParam.background = background;
-
-%% save results
-
-saveResults.dir = '???/example/analysisCommandLine/'; %directory where to save input and output
-saveResults.filename = 'testDetection.mat'; %name of file where input and output are saved
+%verbose state
+verbose = 1;
 
 %% run the detection function
-
 [movieInfo,exceptions,localMaxima,background,psfSigma] = ...
-    detectSubResFeatures2D_StandAlone(movieParam,detectionParam,saveResults);
-
-%% Output variables
-
-%The important output variable is movieInfo, which contains the detected
-%particle information
-
-%for a movie with N frames, movieInfo is a structure array with N entries.
-%Every entry has the fields xCoord, yCoord, zCoord (if 3D) and amp.
-%If there are M features in frame i, each one of these fields in
-%moveiInfo(i) will be an Mx2 array, where the first column is the value
-%(e.g. x-coordinate in xCoord and intensity in amp) and the second column
-%is the standard deviation.
-
+    detectSubResFeatures2D_StandAlone(movieParam,detectionParam,saveResults,verbose);

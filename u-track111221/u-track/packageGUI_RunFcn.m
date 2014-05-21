@@ -3,6 +3,25 @@ function packageGUI_RunFcn(hObject,eventdata,handles)
 %
 % This is a common section of code called by pushbutton_run_Callback
 % when user click the "Run" button on package control panels.
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Chuangang Ren 11/2010
 % Sebastien Besson 5/2011 (last modified Oct 2011)
@@ -21,7 +40,8 @@ userData.statusM(userData.id).Checked = userfcn_saveCheckbox(handles);
 set(handles.figure1, 'UserData', userData)
 
 % Determine the movie(s) to be processed
-nMovies = length(userData.MD); % number of movies
+if ~isempty(userData.MD), field='MD'; else field = 'ML'; end
+nMovies = length(userData.(field)); % number of movies
 if get(handles.checkbox_runall, 'Value')
     movieList = circshift(1:nMovies,[0 -(userData.id-1)]);
 else
@@ -59,7 +79,7 @@ for i = invalidMovies
         ME = MException('lccb:run:setup', ['Step %d : %s is not set up yet.\n'...
             '\nTip: when step is set up successfully, the step name becomes bold.'],j,...
             eval([userData.package(i).getProcessClassNames{j} '.getName']));
-        movieException{i} = cat(2, movieException{i}, ME);
+        movieException{i} = horzcat(movieException{i}, ME);
     end
 end
 
@@ -77,7 +97,7 @@ for iMovie = validMovies
                     ~userData.package(iMovie).processes_{i}.updated_
                 
                 k = false;
-                procRun{iMovie} = cat(2, procRun{iMovie}, i);
+                procRun{iMovie} = horzcat(procRun{iMovie}, i);
             end
         end
         if k
@@ -110,7 +130,7 @@ for iMovie = validMovies
             
             ME = MException('lccb:run:sanitycheck','Step %d %s: \n%s',...
                 i,userData.package(iMovie).processes_{i}.getName, procEx{i}(1).message);
-            movieException{iMovie} = cat(2, movieException{iMovie}, ME);
+            movieException{iMovie} = horzcat(movieException{iMovie}, ME);
                 
         end
     end
@@ -149,11 +169,6 @@ for i=1:length(movieRun)
     userfcn_drawIcon(handles,'clear',procRun{iMovie},'',true); % user data is retrieved, updated and submitted
     % Refresh user data !!!
     userData = get(handles.figure1, 'UserData');
-    
-    % Disable 'Run' button
-%     set(handles.pushbutton_run, 'Enable', 'off')
-%     set(handles.checkbox_forcerun, 'Enable', 'off')
-%     set(handles.checkbox_runall, 'Enable', 'off')
     set(handles.text_status, 'Visible', 'on')
     
     % Run algorithms!
@@ -172,10 +187,13 @@ for i=1:length(movieRun)
         % Save the error into movie Exception cell array
         ME2 = MException('lccb:run:error','Step %d: %s',...
             procID,userData.package(iMovie).processes_{procID}.getName);
-        movieException{iMovie} = cat(2, movieException{iMovie}, ME2);
+        movieException{iMovie} = horzcat(movieException{iMovie}, ME2);
         movieException{iMovie}=movieException{iMovie}.addCause(ME);
         
         procRun{iMovie} = procRun{iMovie}(procRun{iMovie} < procID);
+        
+        % Refresh wall status
+        packageGUI_RefreshFcn(handles,'initialize');
     end
     
     % Refresh user data !!!
@@ -233,103 +251,4 @@ end
 
 % Refresh wall status
 packageGUI_RefreshFcn(handles,'initialize');
-end
-
-function status = generateReport(movieException,userData,type)
-% Generate report from movie exception cell array
-
-% Check exception status
-errorMovies = find(~cellfun(@isempty, movieException, 'UniformOutput', true));
-status =1;
-
-if isempty(errorMovies), return; end
-status = 0;
-
-% Create log message
-basicLogMsg = cell(size(movieException));
-extendedLogMsg = cell(size(movieException));
-for i = errorMovies
-    % Format movie log message
-    basicLogMsg{i} = sprintf('Movie %d - %s:\n\n', i, ...
-        [userData.MD(i).getPath filesep userData.MD(i).getFilename]);
-    extendedLogMsg{i}=basicLogMsg{i};
-    
-    % Read exception message and add causes message if any
-    for j = 1:length(movieException{i})
-        basicLogMsg{i} = [basicLogMsg{i} sprintf('-- %s\n',...
-            movieException{i}(j).getReport('extended','hyperlinks','off'))];
-        extendedLogMsg{i} = [extendedLogMsg{i} sprintf('-- %s\n\n', movieException{i}(j).message)];
-        if ~isempty(movieException{i}(j).cause)
-            extendedLogMsg{i} = [extendedLogMsg{i},...
-                movieException{i}(j).cause{1}.getReport('extended','hyperlinks','off')];
-        end
-    end
-    basicLogMsg{i}=sprintf('%s\n',basicLogMsg{i});
-    extendedLogMsg{i}=sprintf('%s\n',extendedLogMsg{i});
-end
-
-% Add report information
-if strcmpi(type,'preprocessing'), 
-    additionalText=['Please solve the above problems before continuing.'...
-        '\n\nThe movie(s) could not be processed.'];
-elseif strcmpi(type,'postprocessing'), 
-    additionalText=...
-        ['Please verify your settings are correct. '...
-        'Feel free to contact us if you have question regarding this error.'...
-        '\n\nPlease help us improve the software by clearly reporting the '...
-        'scenario when this error occurs, and the above error information '...
-        'to us (error information is also displayed in Matlab command line).'...
-        '\n\nFor contact information please refer to the following URL:'...
-        '\nhttp://lccb.hms.harvard.edu/software.html'];
-
-end
-
-% Display general MATLAB installation information as a header
-% Copied from ver.m
-
-% find platform OS
-if ispc
-   platform = [system_dependent('getos'),' ',system_dependent('getwinsys')];
-elseif ismac
-    [fail, input] = unix('sw_vers');
-    if ~fail
-        platform = strrep(input, 'ProductName:', '');
-        platform = strrep(platform, sprintf('\t'), '');
-        platform = strrep(platform, sprintf('\n'), ' ');
-        platform = strrep(platform, 'ProductVersion:', ' Version: ');
-        platform = strrep(platform, 'BuildVersion:', 'Build: ');
-    else
-        platform = system_dependent('getos');
-    end
-else    
-   platform = system_dependent('getos');
-end
-   
-% display platform type
-matlabInfo = sprintf(['MATLAB Version %s\nMATLAB License Number: %s\n'...
-    'Operating System: %s\nJava VM Version: %s\n'],...
-    version,license,platform,char(strread(version('-java'),'%s',1,'delimiter','\n'))); %#ok<REMFF1>
-
-basicReport = [basicLogMsg{:}, sprintf(additionalText)];
-extendedReport =[matlabInfo, extendedLogMsg{:}, sprintf(additionalText)];
-
-% Create title
-title='The processing of following movie(s)';
-if strcmpi(type,'preprocessing'), 
-    title=[title ' could not be continued:'];
-elseif  strcmpi(type,'postprocessing'), 
-    title=[title ' was terminated by run time error:'];
-end
-
-% Check messagebox existence and generate report using msgboxGUI
-if isfield(userData, 'msgboxGUI') && ishandle(userData.msgboxGUI)
-    delete(userData.msgboxGUI)
-end
-if isequal(basicReport,extendedReport)
-    userData.msgboxGUI = msgboxGUI('title',title,'text', basicReport,...
-        'name','Error report');
-else
-    userData.msgboxGUI = msgboxGUI('title',title,'text', basicReport,...
-        'extendedText',extendedReport,'name','Error report');
-end
 end

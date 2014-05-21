@@ -23,6 +23,25 @@ function [clusters,errFlag] = findOverlapPSFs2D(cands,numPixelsX,numPixelsY,...
 %             .pixels   : All pixels making up a cluster. 3 columns like
 %                         maximaPos.
 %       errFlag      : 0 if function executes normally, 1 otherwise.
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %Khuloud Jaqaman, August 2005
 
@@ -75,7 +94,8 @@ end
 %extract positions of significant local maxima from cands
 tmp = vertcat(cands.Lmax);
 cands2 = tmp([cands.status]==1,2:-1:1);
-tmp = (cands2(:,1)-1)*numPixelsY + cands2(:,2);
+% tmp = (cands2(:,1)-1)*numPixelsY + cands2(:,2);
+tmp = sub2ind([numPixelsY numPixelsX],cands2(:,2),cands2(:,1));
 maxPos0 = zeros(numPixelsY,numPixelsX);
 maxPos0(tmp) = 1;
 
@@ -84,10 +104,6 @@ tmp = vertcat(cands.amp);
 candsAmp = tmp([cands.status]==1);
 
 %generate local maximum mask 
-% template = GaussMask2D(psfSigma,8*ceil(psfSigma)-1,[0 0]);
-% [psfRange] = size(template,1);
-% psfRange = floor(psfRange/2);
-% tmpSize = round(7*psfSigma);
 tmpSize = round(9*psfSigma);
 tmpSize = tmpSize + (1-mod(tmpSize,2));
 template = ones(tmpSize);
@@ -109,12 +125,6 @@ end
 image = image(psfRange+1:end-psfRange,psfRange+1:end-psfRange);
 imageAmp = imageAmp(psfRange+1:end-psfRange,psfRange+1:end-psfRange);
 
-% %normalize image
-% imageN = image/max(image(:));
-% 
-% %get connectivity between PSFs
-% [L,nIsland] = bwlabel(imageN>0.001);
-
 %get connectivity between local maximum masks
 [L,nIsland] = bwlabel(image>0);
 
@@ -129,7 +139,9 @@ for i=1:nIsland
     
     %find initial position of PSF centers in island (in pixels)
     rcCenterL = rc(maxPos0(rc)==1);
-    rcCenter = [ceil(rcCenterL/numPixelsY) mod(rcCenterL,numPixelsY)];
+    %     rcCenter = [ceil(rcCenterL/numPixelsY) rcCenterL-(ceil(rcCenterL/numPixelsY)-1)*numPixelsY];
+    [rcCenterY,rcCenterX] = ind2sub([numPixelsY,numPixelsX],rcCenterL);
+    rcCenter = [rcCenterX rcCenterY];
     
     %determine initial number of PSFs in island
     numPSF0 = size(rcCenter,1);
@@ -141,7 +153,9 @@ for i=1:nIsland
     clusters(i).numMaxima = numPSF0;
     clusters(i).maximaPos = [rcCenter rcCenterL];
     clusters(i).maximaAmp = ampPSF0;
-    clusters(i).pixels = [ceil(rc/numPixelsY) mod(rc,numPixelsY) rc];
+    %     clusters(i).pixels = [ceil(rc/numPixelsY) rc-(ceil(rc/numPixelsY)-1)*numPixelsY rc];
+    [tmpY,tmpX] = ind2sub([numPixelsY,numPixelsX],rc);
+    clusters(i).pixels = [tmpX tmpY rc];
     
 end
 

@@ -1,8 +1,28 @@
 classdef DetectionProcess < ImageAnalysisProcess
-    % A class definition for a generic detection process.
-    %
+    % An abstract class for all detection processes with an output
+    % structure compatible with the tracker
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+    
     % Chuangang Ren, 11/2010
-    % Sebastien Besson (last modified Dec 2011)
+    % Sebastien Besson (last modified May 2012)
     
     methods(Access = public)
         
@@ -49,7 +69,7 @@ classdef DetectionProcess < ImageAnalysisProcess
             if ischar(output),output={output}; end
             
             % Data loading
-            s = load(obj.outFilePaths_{iChan},output{:});
+            s = load(obj.outFilePaths_{1,iChan},output{:});
            
             if numel(ip.Results.iFrame)>1,
                 varargout{1}=s.(output{1});
@@ -61,33 +81,11 @@ classdef DetectionProcess < ImageAnalysisProcess
             colors = hsv(numel(obj.owner_.channels_));
             output(1).name='Objects';
             output(1).var='movieInfo';
-            output(1).formatData=@formatDetectionOutput;
+            output(1).formatData=@DetectionProcess.formatOutput;
             output(1).type='overlay';
             output(1).defaultDisplayMethod=@(x) LineDisplay('Marker','o',...
                 'LineStyle','none','Color',colors(x,:));
-        end 
-        
-        function hfigure = resultDisplay(obj,fig,procID)
-            % Display the output of the process
-              
-            % Check for movie output before loading the GUI
-            iChan = find(obj.checkChannelOutput,1);         
-            if isempty(iChan)
-                warndlg('The current step does not have any output yet.','No Output','modal');
-                return
-            end
-            
-            % Make sure detection output is valid
-            movieInfo=obj.loadChannelOutput(iChan,'output','movieInfo');
-            firstframe=find(arrayfun(@(x) ~isempty(x.amp),movieInfo),1);
-            if isempty(firstframe)
-                warndlg('The detection result is empty. There is nothing to visualize.','Empty Output','modal');
-                return
-            end
-            
-            hfigure = detectionVisualGUI('mainFig', fig, procID);
-        end
-        
+        end  
         
     end
     methods(Static)
@@ -95,21 +93,25 @@ classdef DetectionProcess < ImageAnalysisProcess
             name = 'Detection';
         end
         function h = GUI()
-            h= @detectionProcessGUI;
+            h = @abstractProcessGUI;
         end
         function procClasses = getConcreteClasses()
             procClasses = ...
                 {'SubResolutionProcess';
-                'NucleiDetectionProcess'};
+                'CometDetectionProcess';
+                'AnisoGaussianDetectionProcess';
+                'NucleiDetectionProcess'
+                'PointSourceDetectionProcess';
+                };
+        end
+        
+        function y =formatOutput(x)
+            % Format output in xy coordinate system
+            if isempty(x.xCoord)
+                y = NaN(1,2);
+            else
+                y = horzcat(x.xCoord(:,1),x.yCoord(:,1));
+            end
         end
     end
-
-end
-
-function y =formatDetectionOutput(x)
-if isempty(x.xCoord)
-    y=NaN(1,2);
-else
-    y = horzcat(x.yCoord(:,1),x.xCoord(:,1));
-end
 end

@@ -3,8 +3,27 @@ classdef TrackingProcess < DataProcessingProcess
     %
     % Chuangang Ren, 11/2010
     % Sebastien Besson (last modified Dec 2011)
-
-   
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
+    
+    
     methods(Access = public)
         
         function obj = TrackingProcess(owner, varargin)
@@ -29,60 +48,13 @@ classdef TrackingProcess < DataProcessingProcess
                 end
                 super_args{4} = funParams;
             end
-            obj = obj@DataProcessingProcess(super_args{:});
-            
-            % ---------------- Visualization Parameters --------------------
-            
-            % Tool 1: plotTracks2D
-            
-            obj.visualParams_.pt2D.timeRange = [1 owner.nFrames_];
-            obj.visualParams_.pt2D.colorTime = '3';
-            obj.visualParams_.pt2D.markerType = 'none';
-            obj.visualParams_.pt2D.indicateSE = 0;
-            obj.visualParams_.pt2D.newFigure = 1;
-            obj.visualParams_.pt2D.image = [];
-            obj.visualParams_.pt2D.imageDir = []; % Not in original function
-            obj.visualParams_.pt2D.flipXY = 0;
-            obj.visualParams_.pt2D.ask4sel = 0;
-            obj.visualParams_.pt2D.offset = [0 0];
-            obj.visualParams_.pt2D.minLength = 1;
-            
-            % Tool 2: plotCompTrack
-            
-            obj.visualParams_.pct.trackid = 1; % Not in original function
-            obj.visualParams_.pct.plotX = 1;
-            obj.visualParams_.pct.plotY = 1;
-            obj.visualParams_.pct.plotA = 1;
-            obj.visualParams_.pct.inOneFigure = 1;
-            obj.visualParams_.pct.plotAggregState = 1;
-            
-            % Tool 3: overlayTracksMovieNew
-            
-            obj.visualParams_.otmn.startend = [1 owner.nFrames_];
-            obj.visualParams_.otmn.dragtailLength = 5;
-            obj.visualParams_.otmn.saveMovie = 1;
-            obj.visualParams_.otmn.movieName = [];
-            obj.visualParams_.otmn.dir2saveMovie = funParams.OutputDirectory;
-            obj.visualParams_.otmn.filterSigma = 0;
-            obj.visualParams_.otmn.classifyGaps = 0;
-            obj.visualParams_.otmn.highlightES = 0;
-            obj.visualParams_.otmn.showRaw = 1;
-            obj.visualParams_.otmn.imageRange = []; % TO DO in GUI
-            obj.visualParams_.otmn.onlyTracks = 0;
-            obj.visualParams_.otmn.classifyLft = 0;
-            obj.visualParams_.otmn.diffAnalysisRes = [];
-            obj.visualParams_.otmn.intensityScale = 1;
-            obj.visualParams_.otmn.colorTracks = 1;
-            obj.visualParams_.otmn.minLength = 1;
-            file = owner.getImageFileNames(1);
-            obj.visualParams_.otmn.firstImageFile = [owner.channels_(1).channelPath_ filesep file{1}{1}];
-            
+            obj = obj@DataProcessingProcess(super_args{:});            
         end
         
         function varargout = loadChannelOutput(obj,iChan,varargin)
             
             % Input check
-            outputList = {'tracksFinal'};
+            outputList = {'tracksFinal', 'gapInfo'};
             ip =inputParser;
             ip.addRequired('obj');
             ip.addRequired('iChan',@(x) ismember(x,1:numel(obj.owner_.channels_)));
@@ -94,54 +66,44 @@ classdef TrackingProcess < DataProcessingProcess
             if ischar(output),output={output}; end
             
             % Data loading
-            s = load(obj.outFilePaths_{iChan},output{:});
+            s = load(obj.outFilePaths_{iChan}, 'tracksFinal');
             tracksFinal=s.tracksFinal;
             
-            if ~isempty(iFrame),
-                startTime = arrayfun(@(x) x.seqOfEvents(1,1),tracksFinal);
-                endTime = arrayfun(@(x) x.seqOfEvents(2,1),tracksFinal);
-                isValid = (iFrame>=startTime &iFrame<=endTime);
-                data.x = arrayfun(@(x,y) x.tracksCoordAmpCG(1:8:1+8*(iFrame-y)),...
-                    tracksFinal(isValid),startTime(isValid),'Unif',0);
-                data.y = arrayfun(@(x,y) x.tracksCoordAmpCG(2:8:2+8*(iFrame-y)),...
-                    tracksFinal(isValid),startTime(isValid),'Unif',0);
-                data.label = find(isValid);
-                varargout{1}=data;
-            else
-                varargout{1} = tracksFinal;
+            for i=1:numel(output)
+                switch output{i}
+                    case 'tracksFinal'
+                        if ~isempty(iFrame),
+                            % Filter tracks existing in input frame
+                            trackSEL=getTrackSEL(tracksFinal);
+                            validTracks = (iFrame>=trackSEL(:,1) &iFrame<=trackSEL(:,2));
+                            [tracksFinal(~validTracks).tracksCoordAmpCG]=deal([]);
+                            
+                            for j=find(validTracks)'
+                                tracksFinal(j).tracksCoordAmpCG = tracksFinal(j).tracksCoordAmpCG(:,1:8*(iFrame-trackSEL(j,1)+1));
+                            end
+                            varargout{i} = tracksFinal;
+                        else
+                            varargout{i} = tracksFinal;
+                        end
+                    case 'gapInfo'
+                        varargout{1} = findTrackGaps(tracksFinal);
+                end
             end
-            
-        end
-        
-        
-        
-        function hfigure = resultDisplay(obj,fig,procID)
-            % Display the output of the process
-              
-            % Check for movie output before loading the GUI
-            iChan = find(obj.checkChannelOutput,1);         
-            if isempty(iChan)
-                warndlg('The current step does not have any output yet.','No Output','modal');
-                return
-            end
-            
-            % Make sure detection output is valid
-            tracksFinal=obj.loadChannelOutput(iChan);
-            if isempty(tracksFinal)
-                warndlg('The tracking result is empty. There is nothing to visualize.','Empty Output','modal');
-                return
-            end
-
-            hfigure = trackingVisualGUI('mainFig', fig, procID);
         end
         
         function output = getDrawableOutput(obj)
             colors = hsv(numel(obj.owner_.channels_));
             output(1).name='Tracks';
             output(1).var='tracksFinal';
-            output(1).formatData=[];
+            output(1).formatData=@TrackingProcess.formatTracks;
             output(1).type='overlay';
             output(1).defaultDisplayMethod=@(x)TracksDisplay('Color',colors(x,:));
+            output(2).name='Gap length histogram';
+            output(2).var='gapInfo';
+            output(2).formatData=@(x) x(:,4);
+            output(2).type='graph';
+            output(2).defaultDisplayMethod=@(x)HistogramDisplay('XLabel','Gap length',...
+                'YLabel','Counts');
         end
         
         
@@ -153,7 +115,7 @@ classdef TrackingProcess < DataProcessingProcess
         function h = GUI()
             h= @trackingProcessGUI;
         end
-
+        
         function funParams = getDefaultParams(owner,varargin)
             % Input check
             ip=inputParser;
@@ -163,10 +125,10 @@ classdef TrackingProcess < DataProcessingProcess
             outputDir=ip.Results.outputDir;
             
             % Set default parameters
-                       
+            
             funParams.ChannelIndex =1:numel(owner.channels_);
             funParams.DetProcessIndex = [];
-            funParams.OutputDirectory = [outputDir  filesep 'Tracking'];
+            funParams.OutputDirectory = [outputDir  filesep 'tracks'];
             
             % --------------- gapCloseParam ----------------
             funParams.gapCloseParam.timeWindow = 5; %IMPORTANT maximum allowed time gap (in frames) between a track segment end and a track segment start that allows linking them.
@@ -177,11 +139,11 @@ classdef TrackingProcess < DataProcessingProcess
             
             % --------------- kalmanFunctions ----------------
             
-            funParams.kalmanFunctions.reserveMem  = TrackingProcess.getKalmanReserveMemFunctions(1).funcName;
-            funParams.kalmanFunctions.initialize  = TrackingProcess.getKalmanInitializeFunctions(1).funcName;
-            funParams.kalmanFunctions.calcGain    = TrackingProcess.getKalmanCalcGainFunctions(1).funcName;
-            funParams.kalmanFunctions.timeReverse = TrackingProcess.getKalmanTimeReverseFunctions(1).funcName;
-            
+            kalmanFunctions = TrackingProcess.getKalmanFunctions(1);
+            fields = fieldnames(kalmanFunctions);
+            validFields = {'reserveMem','initialize','calcGain','timeReverse'};
+            kalmanFunctions = rmfield(kalmanFunctions,fields(~ismember(fields,validFields)));
+            funParams.kalmanFunctions = kalmanFunctions;
             
             % --------------- saveResults ----------------
             funParams.saveResults.export = 0; %FLAG allow additional export of the tracking results into matrix
@@ -194,57 +156,36 @@ classdef TrackingProcess < DataProcessingProcess
             funParams.costMatrices(1) = TrackingProcess.getDefaultLinkingCostMatrices(owner, funParams.gapCloseParam.timeWindow,1);
             funParams.costMatrices(2) = TrackingProcess.getDefaultGapClosingCostMatrices(owner, funParams.gapCloseParam.timeWindow,1);
             
-
-        end
-        
-        function functions = getKalmanReserveMemFunctions(varargin)
-            functions(1).name = 'Brownian + Directed motion models';
-            functions(1).funcName = func2str(@kalmanResMemLM);
             
-            ip=inputParser;
-            ip.addOptional('index',1:length(functions),@isvector);
-            ip.parse(varargin{:});
-            index = ip.Results.index;
-            functions=functions(index);      
         end
         
-        function functions = getKalmanInitializeFunctions(varargin)
-            functions(1).name = 'Brownian + Directed motion models';
-            functions(1).funcName = func2str(@kalmanInitLinearMotion);
-            functions(1).GUI=@kalmanInitializationGUI;
-            ip=inputParser;
-            ip.addOptional('index',1:length(functions),@isvector);
-            ip.parse(varargin{:});
-            index = ip.Results.index;
-            functions=functions(index);      
-        end
-        
-        function functions = getKalmanCalcGainFunctions(varargin)
-            functions(1).name = 'Brownian + Directed motion models';
-            functions(1).funcName = func2str(@kalmanGainLinearMotion);
+        function kalmanFunctions = getKalmanFunctions(index)
+            % Brownian + Directed motion models
+            kalmanFunctions(1).name = 'Brownian + Directed motion models';
+            kalmanFunctions(1).reserveMem = func2str(@kalmanResMemLM);
+            kalmanFunctions(1).initialize  = func2str(@kalmanInitLinearMotion);
+            kalmanFunctions(1).initializeGUI  = @kalmanInitializationGUI;
+            kalmanFunctions(1).calcGain    = func2str(@kalmanGainLinearMotion);
+            kalmanFunctions(1).timeReverse = func2str(@kalmanReverseLinearMotion);
             
-            ip=inputParser;
-            ip.addOptional('index',1:length(functions),@isvector);
-            ip.parse(varargin{:});
-            index = ip.Results.index;
-            functions=functions(index);      
-        end
-        
-        function functions = getKalmanTimeReverseFunctions(varargin)
-            functions(1).name = 'Brownian + Directed motion models';
-            functions(1).funcName = func2str(@kalmanReverseLinearMotion);
+            % Microtubule plus-end dynamics
+            kalmanFunctions(2).name = 'Microtubule plus-end dynamics';
+            kalmanFunctions(2).reserveMem = func2str(@kalmanResMemLM);
+            kalmanFunctions(2).initialize  = func2str(@plusTipKalmanInitLinearMotion);
+            kalmanFunctions(2).initializeGUI  = @kalmanInitializationGUI;
+            kalmanFunctions(2).calcGain    = func2str(@plusTipKalmanGainLinearMotion);
+            kalmanFunctions(2).timeReverse = func2str(@kalmanReverseLinearMotion);
             
-            ip=inputParser;
-            ip.addOptional('index',1:length(functions),@isvector);
-            ip.parse(varargin{:});
-            index = ip.Results.index;
-            functions=functions(index);      
-        end     
+            if nargin>0
+                assert(all(ismember(index, 1:numel(kalmanFunctions))));
+                kalmanFunctions=kalmanFunctions(index);
+            end
+        end
         
         
         function costMatrix = getDefaultLinkingCostMatrices(owner,timeWindow,varargin)
             
-            % Linear motion
+            % Brownian + Directed motion models
             costMatrices(1).name = 'Brownian + Directed motion models';
             costMatrices(1).funcName = func2str(@costMatRandomDirectedSwitchingMotionLink);
             costMatrices(1).GUI = @costMatRandomDirectedSwitchingMotionLinkGUI;
@@ -257,14 +198,29 @@ classdef TrackingProcess < DataProcessingProcess
             costMatrices(1).parameters.kalmanInitParam = []; %Kalman filter initialization parameters.
             costMatrices(1).parameters.diagnostics = owner.nFrames_-1;
             
-                        
+            % plusTip markers
+            plusTipCostMatrix.name = 'Microtubule plus-end dynamics';
+            plusTipCostMatrix.funcName = func2str(@plusTipCostMatLinearMotionLink);
+            plusTipCostMatrix.GUI = @plusTipCostMatLinearMotionLinkGUI;
+            plusTipCostMatrix.parameters.linearMotion = 1; % use linear motion Kalman filter.
+            plusTipCostMatrix.parameters.minSearchRadius = 2; %minimum allowed search radius. The search radius is calculated on the spot in the code given a feature's motion parameters. If it happens to be smaller than this minimum, it will be increased to the minimum.
+            plusTipCostMatrix.parameters.maxSearchRadius = 10; %IMPORTANT maximum allowed search radius. Again, if a feature's calculated search radius is larger than this maximum, it will be reduced to this maximum.
+            plusTipCostMatrix.parameters.brownStdMult = 3; %multiplication factor to calculate search radius from standard deviation.
+            plusTipCostMatrix.parameters.useLocalDensity = 1; %1 if you want to expand the search radius of isolated features in the linking (initial tracking) step.
+            plusTipCostMatrix.parameters.nnWindow = timeWindow; %number of frames before the current one where you want to look to see a feature's nearest neighbor in order to decide how isolated it is (in the initial linking step).
+            plusTipCostMatrix.parameters.kalmanInitParam.initVelocity = []; %Kalman filter initialization parameters.
+            plusTipCostMatrix.parameters.kalmanInitParam.convergePoint = []; %Kalman filter initialization parameters.
+            plusTipCostMatrix.parameters.kalmanInitParam.searchRadiusFirstIteration = 20; %Kalman filter initialization parameters.
+            plusTipCostMatrix.parameters.diagnostics = [];
+            costMatrices(2)=plusTipCostMatrix;
+            
             ip=inputParser;
             ip.addRequired('owner',@(x) isa(x,'MovieData'));
             ip.addRequired('timeWindow',@isscalar);
             ip.addOptional('index',1:length(costMatrices),@isvector);
             ip.parse(owner,timeWindow,varargin{:});
             index = ip.Results.index;
-            costMatrix=costMatrices(index);          
+            costMatrix=costMatrices(index);
         end
         
         function costMatrix = getDefaultGapClosingCostMatrices(owner,timeWindow,varargin)
@@ -296,14 +252,80 @@ classdef TrackingProcess < DataProcessingProcess
             costMatrices(1).parameters.gapPenalty = 1.5; %penalty for increasing temporary disappearance time (disappearing for n frames gets a penalty of gapPenalty^n).
             costMatrices(1).parameters.resLimit = []; % text field resolution limit, which is generally equal to 3 * point spread function sigma.
             
+            % Linear motion
+            plusTipCostMatrix.name = 'Microtubule plus-end dynamics';
+            plusTipCostMatrix.funcName = func2str(@plusTipCostMatCloseGaps);
+            plusTipCostMatrix.GUI = @plusTipCostMatCloseGapsGUI;
+            plusTipCostMatrix.parameters.maxFAngle = 30; %use linear motion Kalman filter.
+            plusTipCostMatrix.parameters.maxBAngle = 10; %use linear motion Kalman filter.
+            plusTipCostMatrix.parameters.backVelMultFactor = 1.5;
+            plusTipCostMatrix.parameters.fluctRad = 1.0;
+            plusTipCostMatrix.parameters.breakNonLinearTracks = false;
+            costMatrices(2)=plusTipCostMatrix;
+            
             ip=inputParser;
             ip.addRequired('owner',@(x) isa(x,'MovieData'));
             ip.addRequired('timeWindow',@isscalar);
             ip.addOptional('index',1:length(costMatrices),@isvector);
             ip.parse(owner,timeWindow,varargin{:});
             index = ip.Results.index;
-            costMatrix=costMatrices(index);      
-        end    
+            costMatrix=costMatrices(index);
+        end
         
+        function displayTracks = formatTracks(tracks)
+            % Format tracks structure into compound tracks for display
+            % purposes
+            
+            % Determine the number of compound tracks
+            nCompoundTracks = zeros(numel(tracks), 1);
+            for i = 1:numel(tracks)
+                nCompoundTracks(i) =  size(tracks(i).tracksCoordAmpCG,1);
+            end
+            nTracksTot = [0 cumsum(nCompoundTracks(:))'];
+            
+            % Fail fast if no track
+            if sum(nCompoundTracks) == 0
+                displayTracks = struct.empty(1,0);
+                return
+            end
+            
+            displayTracks(sum(nCompoundTracks),1) = struct('xCoord', [], 'yCoord', []);
+            for i = find(nCompoundTracks)'
+                % Get the x and y coordinate of all compound tracks
+                for  j = 1 : nCompoundTracks(i)
+                    iTrack = nTracksTot(i) + j ;
+                    displayTracks(iTrack).xCoord = tracks(i).tracksCoordAmpCG(j, 1:8:end);
+                    displayTracks(iTrack).yCoord = tracks(i).tracksCoordAmpCG(j, 2:8:end);
+                    displayTracks(iTrack).number = i;
+                    if isfield(tracks, 'label'),
+                        displayTracks(iTrack).label = tracks(i).label;
+                    end
+                end
+                
+                % Fill split events NaNs in compound tracks
+                nTimes = numel(displayTracks(iTrack).xCoord);
+                splitEvents = find(tracks(i).seqOfEvents(:,2)==1 & ~isnan(tracks(i).seqOfEvents(:,4)))';
+                eventTimes = tracks(i).seqOfEvents(splitEvents,1)-1;
+                for iEvent = splitEvents(eventTimes < nTimes)
+                    iTrack1 = nTracksTot(i)+ tracks(i).seqOfEvents(iEvent,3);
+                    iTrack2 = nTracksTot(i)+ tracks(i).seqOfEvents(iEvent,4);
+                    t = tracks(i).seqOfEvents(iEvent,1)-1;
+                    displayTracks(iTrack1).xCoord(t) = displayTracks(iTrack2).xCoord(t);
+                    displayTracks(iTrack1).yCoord(t) = displayTracks(iTrack2).yCoord(t);
+                end
+                
+                % Fill merge events NaNs in compound tracks
+                mergeEvents = find(tracks(i).seqOfEvents(:,2)==2 & ~isnan(tracks(i).seqOfEvents(:,4)))';
+                eventTimes = tracks(i).seqOfEvents(mergeEvents,1)-1;
+                for iEvent = mergeEvents(eventTimes < nTimes)
+                    iTrack1 = nTracksTot(i)+ tracks(i).seqOfEvents(iEvent,3);
+                    iTrack2 = nTracksTot(i)+ tracks(i).seqOfEvents(iEvent,4);
+                    t = tracks(i).seqOfEvents(iEvent,1);
+                    displayTracks(iTrack1).xCoord(t) = displayTracks(iTrack2).xCoord(t);
+                    displayTracks(iTrack1).yCoord(t) = displayTracks(iTrack2).yCoord(t);
+                end
+            end
+        end
     end
 end
+

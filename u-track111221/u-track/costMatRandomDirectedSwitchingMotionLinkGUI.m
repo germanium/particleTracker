@@ -19,6 +19,25 @@ function varargout = costMatRandomDirectedSwitchingMotionLinkGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help costMatRandomDirectedSwitchingMotionLinkGUI
 
@@ -46,34 +65,9 @@ end
 
 % --- Executes just before costMatRandomDirectedSwitchingMotionLinkGUI is made visible.
 function costMatRandomDirectedSwitchingMotionLinkGUI_OpeningFcn(hObject, eventdata, handles, varargin)
-% userData.linkingFig = costMatRandomDirectedSwitchingMotionLinkGUI{procID}('mainFig',
-% handles.figure1, procID);
-%
-% userData.mainFig
-% userData.procID
-% userData.handles_main
-% userData.userData_main
-% userData.crtProc
-% userData.parameters
 
-
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
-
-
+costMat_OpeningFcn(hObject, eventdata, handles, varargin{:})
 userData = get(handles.figure1, 'UserData');
-handles.output = hObject;
-
-% Get main figure handle and process id
-t = find(strcmp(varargin,'mainFig'));
-userData.mainFig = varargin{t+1};
-userData.procID = varargin{t+2};
-userData.handles_main = guidata(userData.mainFig);
-userData.userData_main = get(userData.handles_main.figure1, 'UserData');
-userData.crtProc = userData.userData_main.crtProc;
-
-u = get(userData.handles_main.popupmenu_linking, 'UserData');
-userData.parameters = u{userData.procID};
 parameters = userData.parameters;
 
 % Parameter Setup
@@ -97,32 +91,9 @@ else
     end
 end
 
-
-% Get icon infomation
-userData.questIconData = userData.userData_main.questIconData;
-userData.colormap = userData.userData_main.colormap;
-
-% ----------------------Set up help icon------------------------
-
-% Set up help icon
-set(hObject,'colormap',userData.colormap);
-% Set up package help. Package icon is tagged as '0'
-set(handles.figure1,'CurrentAxes',handles.axes_help);
-Img = image(userData.questIconData); 
-set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
-    'visible','off','YDir','reverse');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-if openHelpFile
-    set(Img, 'UserData', struct('class', mfilename))
-else
-    set(Img, 'UserData', 'Please refer to help file.')
-end
-
-
-set(handles.figure1, 'UserData', userData)
 % Update handles structure
+handles.output = hObject;
 guidata(hObject, handles);
-
 
 
 % UIWAIT makes costMatRandomDirectedSwitchingMotionLinkGUI wait for user response (see UIRESUME)

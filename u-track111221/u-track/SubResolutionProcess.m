@@ -2,6 +2,25 @@ classdef SubResolutionProcess < DetectionProcess
     % A concrete class for detecting objects using Gaussian mixture-model fitting
     % Chuangang Ren 11/2010
     % Sebastien Besson (last modified Dec 2011)
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
     
     methods (Access = public)
         function obj = SubResolutionProcess(owner, varargin)
@@ -25,18 +44,7 @@ classdef SubResolutionProcess < DetectionProcess
             end
             super_args{4} = funParams;
             
-            obj = obj@DetectionProcess(super_args{:});
-            
-            % Visual parameters ( Default: channel 1 )
-            obj.visualParams_.startend = [1 owner.nFrames_];
-            obj.visualParams_.saveMovie = 1;
-            obj.visualParams_.movieName = [];
-            obj.visualParams_.dir2saveMovie = funParams.OutputDirectory;
-            obj.visualParams_.filterSigma = 0;
-            obj.visualParams_.showRaw = 1;
-            obj.visualParams_.intensityScale = 1;
-            file = owner.getImageFileNames(1);
-            obj.visualParams_.firstImageFile = [owner.channels_(1).channelPath_ filesep file{1}{1}];
+            obj = obj@DetectionProcess(super_args{:});            
         end
       
  
@@ -72,7 +80,7 @@ classdef SubResolutionProcess < DetectionProcess
             
             % detectionParam
             if ~isempty(owner.channels_(1).psfSigma_)
-                funParams.detectionParam.psfSigma = owner.channels_.psfSigma_;
+                funParams.detectionParam.psfSigma = mean(horzcat(owner.channels_.psfSigma_));%%%% (1) for testing
             else
                 funParams.detectionParam.psfSigma=[];
             end

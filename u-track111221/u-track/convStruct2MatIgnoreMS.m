@@ -8,7 +8,7 @@ function [trackedFeatureInfo,trackedFeatureIndx,trackStartRow,numSegments,aggreg
 %INPUT  tracksFinal: Output of trackCloseGapsKalman, when run with
 %                    gapCloseParam.mergeSplit = 1.
 %       startFirstFrame: 1 to start martix at first frame where there are
-%                    tracks, 0 otherwise. Thepoint is to avoid many empty
+%                    tracks, 0 otherwise. The point is to avoid many empty
 %                    columns before any tracks start.
 %                    Optional. Default: 0.
 %OUTPUT trackedFeatureInfo, trackedFeatureIndx: Output of trackWithGapClosing.
@@ -21,6 +21,25 @@ function [trackedFeatureInfo,trackedFeatureIndx,trackStartRow,numSegments,aggreg
 %                       state is supplied in tracksFinal.
 %
 %Khuloud Jaqaman, February 2008
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% input - output
 if isfield(tracksFinal,'aggregState')

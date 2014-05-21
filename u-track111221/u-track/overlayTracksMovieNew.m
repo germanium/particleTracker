@@ -91,7 +91,7 @@ function overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
 %       movieType     : 'mov' to make a Quicktime movie using MakeQTMovie,
 %                       'avi' to make AVI movie using Matlab's movie2avi,
 %                       'mp4_unix', 'avi_unix' to make an MP4 or AVI movie
-%                       using ImageMagick and ffmpeg. These options works
+%                       using ImageMagick and ffmpeg. These options work
 %                       only under linux or mac.
 %                       Optional. Default: 'mov'.
 %       DT            : Interval between frames in seconds. If empty it defaults to frame
@@ -138,6 +138,25 @@ function overlayTracksMovieNew(tracksFinal, startend, dragtailLength,...
 %               * Type 0: Too short for any analysis: Light pink.
 %
 %Khuloud Jaqaman, August 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% input - basic
 
@@ -279,7 +298,7 @@ if nargin < 12 || isempty(classifyLft)
 end
 
 %check whether to color-code tracks based on diffusion classification
-%checm whether diffusion classification is for overall tracks or transient
+%check whether diffusion classification is for overall tracks or transient
 if nargin < 13 || isempty(diffAnalysisRes)
     diffAnalysisRes = [];
     transDiffClass = 0;
@@ -292,7 +311,9 @@ else
     else
         transDiffClass = 0;
     end
-    diffAnalysisRes = diffAnalysisRes(indx);
+    if minLength > 1
+        diffAnalysisRes = diffAnalysisRes(indx);
+    end
 end
 
 %check how to scale image intensity
@@ -360,7 +381,8 @@ trackStatus  = (trackSEL(:,1) == tracksFirstFrame) + (trackSEL(:,2) == tracksLas
 %give all tracks same classification if lifetime classification not
 %requested
 if classifyLft == 0
-    trackStatus(:) = 2;
+%     trackStatus(:) = 2;
+    trackStatus(:) = 0;
 end
 
 %get number of segments making each track
@@ -790,7 +812,7 @@ for iFrame = 1 : numFramesMovie
         case 1
             
             axes('Position',[0 0 0.495 1]);
-            imshow(imageStack ,intensityMinMax);
+            imshow(imageStack,intensityMinMax);
             %             xlim(imageRange(2,:));
             %             ylim(imageRange(1,:));
             hold on;

@@ -19,10 +19,29 @@ function varargout = packageGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help packageGUI
 
-% Last Modified by GUIDE v2.5 19-Oct-2011 14:16:02
+% Last Modified by GUIDE v2.5 04-Jun-2013 14:06:35
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -56,7 +75,8 @@ varargout{1} = handles.output;
 % In case the package GUI has been called without argument
 userData = get(handles.figure1, 'UserData');
 if (isfield(userData,'startMovieSelectorGUI') && userData.startMovieSelectorGUI)
-    movieSelectorGUI('packageName',userData.packageName,'MD',userData.MD);
+    movieSelectorGUI('packageName',userData.packageName,'MD',userData.MD,...
+        'ML', userData.ML);
     delete(handles.figure1)
 end
 
@@ -136,6 +156,12 @@ delete(handles.figure1);
 function figure1_DeleteFcn(hObject, eventdata, handles)
 
 userData = get(handles.figure1, 'UserData');
+if ~isempty(userData.MD)
+if userData.MD.isMock()
+    load([userData.MD.mockMD_.parent.movieDataPath_, filesep, userData.MD.mockMD_.parent.movieDataFileName_]);
+    movieViewer(MD, 'refresher', '1');
+end
+end
 
 % Find all figures stored in userData and delete them
 if isempty(userData), return; end
@@ -186,8 +212,10 @@ end
 function menu_file_open_Callback(~, ~, handles)
 % Call back function of 'New' in menu bar
 userData = get(handles.figure1,'Userdata');
-if isfield(userData,'MD'), arrayfun(@(x) x.save,userData.MD); end
-movieSelectorGUI('packageName',userData.packageName,'MD',userData.MD);
+% if ~isempty(userData.MD), field = 'MD'; else field = 'ML'; end
+% arrayfun(@(x) x.save,userData.(field));
+movieSelectorGUI('packageName',userData.packageName,...
+    'MD', userData.MD, 'ML', userData.ML);
 delete(handles.figure1)
 
 % --------------------------------------------------------------------
@@ -203,17 +231,11 @@ userData = get(handles.figure1, 'UserData');
 prop=get(hObject,'Tag');
 procID = str2double(prop(length('pushbutton_show_')+1:end));
 
-if isfield(userData, 'resultFig') & ishandle(userData.resultFig)
+if isfield(userData, 'resultFig') && ishandle(userData.resultFig)
     delete(userData.resultFig)
 end
 
-% Modifications should be added to the resultDisplay methods (should be
-% generic!!!!)
-if isa(userData.crtPackage,'UTrackPackage')
-    userData.resultFig = userData.crtPackage.processes_{procID}.resultDisplay(handles.figure1,procID);
-else
-    userData.resultFig = userData.crtPackage.processes_{procID}.resultDisplay();
-end
+userData.resultFig = userData.crtPackage.processes_{procID}.resultDisplay();
     
 set(handles.figure1, 'UserData', userData);
 
@@ -251,5 +273,42 @@ userfcn_lampSwitch(procID, procStatus, handles);
 function menu_debug_enter_Callback(hObject, eventdata, handles)
 
 status = get(hObject,'Checked');
-if strcmp(status,'on'), newstatus = 'off'; else newstatus='on'; end
+if strcmp(status,'on'), 
+    newstatus = 'off'; 
+    dbclear if caught error;
+else
+    newstatus='on'; 
+end
 set(hObject,'Checked',newstatus);
+
+
+% --------------------------------------------------------------------
+function menu_debug_batchMode_Callback(hObject, eventdata, handles)
+
+status = get(hObject,'Checked');
+if strcmp(status,'on'), 
+    newstatus = 'off'; 
+else
+    newstatus='on'; 
+end
+set(hObject,'Checked',newstatus);
+
+
+% --- Executes on button press in pushbutton_open.
+function pushbutton_open_Callback(hObject, eventdata, handles)
+userData = get(handles.figure1, 'UserData');
+prop=get(hObject,'Tag');
+procID = str2double(prop(length('pushbutton_show_')+1:end));
+
+% Use the OS-specific command to open result in exploration window
+outputDir = userData.crtPackage.processes_{procID}.funParams_.OutputDirectory;
+if ispc
+    winopen(outputDir);
+elseif ismac
+    system(sprintf('open %s',regexptranslate('escape',outputDir)));
+else
+    msgbox(sprintf('Results can be found under %s',regexptranslate('escape',outputDir)));
+    % SB: Following command not working under Ubuntu (as well as gnome-open
+    % & nautilus)
+    % system(sprintf('xdg-open %s',regexptranslate('escape',outputDir)));
+end

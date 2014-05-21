@@ -19,10 +19,29 @@ function varargout = dataPreparationGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help dataPreparationGUI
 
-% Last Modified by GUIDE v2.5 23-Apr-2011 20:07:04
+% Last Modified by GUIDE v2.5 10-Apr-2013 12:15:52
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -63,8 +82,7 @@ function dataPreparationGUI_OpeningFcn(hObject, ~, handles, varargin)
 %
 %
 
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
+set(handles.text_copyright, 'String', getLCCBCopyright())
 
 % Choose default command line output forfor i dataPreparationGUI
 handles.output = hObject;
@@ -79,21 +97,17 @@ userData.channels =[];
 userData.movies=[];
 
 % Load help icon from dialogicons.mat
-load lccbGuiIcons.mat
+userData = loadLCCBIcons(userData);
 supermap(1,:) = get(hObject,'color');
 userData.colormap = supermap;
-userData.questIconData = questIconData;
 
 axes(handles.axes_help);
-Img = image(questIconData);
+Img = image(userData.questIconData);
 set(hObject,'colormap',supermap);
 set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
     'visible','off');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-
-if openHelpFile
-    set(Img, 'UserData', struct('class',mfilename))
-end
+set(Img,'ButtonDownFcn',@icon_ButtonDownFcn,...
+    'UserData', struct('class',mfilename));
 
 % TestIif the dataPreparationGUI ewas called from the movieSelctorGUI
 if nargin > 3       
@@ -592,7 +606,7 @@ update_graphics(hObject,handles)
 
 
 % --- Executes on button press in pushbutton_done.
-function pushbutton_done_Callback(~, ~, handles)
+function pushbutton_done_Callback(~, eventdata, handles)
 
 userData = get(handles.figure1, 'UserData');
 
@@ -688,7 +702,7 @@ for iMovie=1:nMovies
             catch ME
                 throw(ME);
             end
-            MDChannels = cat(2, MDChannels,newChannel);
+            MDChannels = horzcat(MDChannels, newChannel);
         end
         
     end
@@ -737,13 +751,11 @@ for iMovie=1:nMovies
                 return
             end
 
-            % Update the main window components (list of MovieData, MovieData
-            % listbox)
-            userData_main.MD = cat(2, userData_main.MD, MD);        
-            contentlist{end+1} = [movieFolder filesep movieDataFile];
-            set(userData.handles_main.listbox_movie, 'String', contentlist, 'Value', length(contentlist))
-            title = sprintf('Movie List: %s/%s movie(s)', num2str(length(contentlist)), num2str(length(contentlist)));
-            set(userData.handles_main.text_movie_1, 'String', title)        
+            % Append new ROI to movie selector panel
+            userData_main.MD = horzcat(userData_main.MD, MD);
+            set(userData.mainFig, 'UserData', userData_main)
+            movieSelectorGUI('refreshDisplay',userData.mainFig,...
+                eventdata,guidata(userData.mainFig));
         end
     end
 end
@@ -756,4 +768,3 @@ if isfield(userData,'mainFig')% Save the data
 end
 % Delete current window
 delete(handles.figure1)
-

@@ -19,10 +19,29 @@ function varargout = movieDataGUI(varargin)
 %      instance to run (singleton)".
 %
 % See also: GUIDE, GUIDATA, GUIHANDLES
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 % Edit the above text to modify the response to help movieDataGUI
 
-% Last Modified by GUIDE v2.5 14-Nov-2011 13:42:46
+% Last Modified by GUIDE v2.5 20-Apr-2013 12:53:57
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -81,38 +100,31 @@ userData = get(handles.figure1, 'UserData');
 userData.MD=ip.Results.MD;
 userData.mainFig=ip.Results.mainFig;
 
-[copyright openHelpFile] = userfcn_softwareConfig(handles);
-set(handles.text_copyright, 'String', copyright)
+
+set(handles.text_copyright, 'String', getLCCBCopyright());
 
 
 % Set channel object array
-userData.channels = [];
+userData.channels = Channel.empty(1,0);
 
 % Load help icon from dialogicons.mat
-load lccbGuiIcons.mat
+userData = loadLCCBIcons(userData);
 supermap(1,:) = get(hObject,'color');
 
 userData.colormap = supermap;
-userData.questIconData = questIconData;
 
 set(handles.figure1,'CurrentAxes',handles.axes_help);
-Img = image(questIconData);
+Img = image(userData.questIconData);
 set(hObject,'colormap',supermap);
 set(gca, 'XLim',get(Img,'XData'),'YLim',get(Img,'YData'),...
     'visible','off');
-set(Img,'ButtonDownFcn',@icon_ButtonDownFcn);
-
-if openHelpFile
-    set(Img, 'UserData', struct('class', mfilename))
-end
+set(Img,'ButtonDownFcn',@icon_ButtonDownFcn,...
+    'UserData', struct('class', mfilename));
 
 
 if ~isempty(userData.MD),
     userData.channels = userData.MD.channels_;
-        
-    % Channel listbox
-    cPath=arrayfun(@(x) x.channelPath_,userData.channels,'UniformOutput',false);
-    set(handles.listbox_channel, 'String', cPath)
+    set(handles.listbox_channel, 'String', userData.MD.getChannelPaths)
     
     % GUI setting
     set(handles.pushbutton_delete, 'Enable', 'off')
@@ -120,7 +132,7 @@ if ~isempty(userData.MD),
     set(handles.pushbutton_output, 'Enable', 'off')
     
     set(hObject, 'Name', 'Movie Detail')
-    set(handles.edit_path,'String', [userData.MD.movieDataPath_ filesep userData.MD.movieDataFileName_])
+    set(handles.edit_path,'String', userData.MD.getFullPath)
     set(handles.edit_output, 'String', userData.MD.outputDirectory_)
     set(handles.edit_notes, 'String', userData.MD.notes_)
     
@@ -164,7 +176,7 @@ delete(handles.figure1);
 
 
 % --- Executes on button press in pushbutton_done.
-function pushbutton_done_Callback(~, ~, handles)
+function pushbutton_done_Callback(hObject, eventdata, handles)
 
 userData = get(handles.figure1,'UserData');
 
@@ -175,9 +187,7 @@ if ~isfield(userData, 'channels') || isempty(userData.channels)
     return;    
 end
 
-if ~isa(userData.channels(1), 'Channel')
-   error('User-defined: userData.channels are not of class ''Channel''') 
-end
+assert(isa(userData.channels(1), 'Channel'),'User-defined: userData.channels are not of class ''Channel''') 
 
 % Check output path
 outputDir = get(handles.edit_output, 'String');
@@ -192,6 +202,9 @@ propNames={'pixelSize_','timeInterval_','numAperture_','camBitdepth_'};
 propHandles = cellfun(@(x) handles.(['edit_' x(1:end-1)]),propNames);
 propStrings =get(propHandles,'String');
 validProps = ~cellfun(@isempty,propStrings);
+if ~isempty(userData.MD),
+    validProps=validProps & cellfun(@(x)isempty(userData.MD.(x)),propNames');
+end
 propNames=propNames(validProps);
 propValues=num2cell(str2double(propStrings(validProps)))';
  
@@ -203,41 +216,37 @@ if ~isempty(get(handles.edit_notes, 'String'))
     movieOptions=horzcat(movieOptions,'notes_',get(handles.edit_notes, 'String'));
 end
 
-if ~isempty(userData.MD);
+if ~isempty(userData.MD),
     % Overview mode - edit existing MovieDat
-    try
-        set(userData.MD,movieOptions{:});
-    catch ME
-        errormsg = sprintf([ME.message '.\n\Editing movie data failed.']);
-        errordlg(errormsg, 'User Input Error','modal');
-        return;
+    if ~isempty(movieOptions)
+        try
+            set(userData.MD,movieOptions{:});
+        catch ME
+            errormsg = sprintf([ME.message '.\n\nMovie edition failed.']);
+            errordlg(errormsg, 'User Input Error','modal');
+            return;
+        end
     end
-    % Create a pointer to the MovieData object (to use the same
-    % sanityCheck command later)
-    MD=userData.MD; 
 else
     % Create Movie Data
     try
-        MD = MovieData(userData.channels, outputDir, movieOptions{:});
+        userData.MD = MovieData(userData.channels, outputDir, movieOptions{:});
     catch ME
-        errormsg = sprintf([ME.message '.\n\nCreating movie data failed.']);
+        errormsg = sprintf([ME.message '.\n\nMovie creation failed.']);
         errordlg(errormsg, 'User Input Error','modal');
+        set(handles.figure1,'UserData',userData)
         return;
     end
 end
 
 try
-    MD.sanityCheck
+    userData.MD.sanityCheck;
 catch ME
-    delete(MD);
     errormsg = sprintf('%s.\n\nPlease check your movie data. Movie data is not saved.',ME.message);
     errordlg(errormsg,'Channel Error','modal');
+    set(handles.figure1,'UserData',userData)
     return;
 end
-
-% Run the save method (should launch the dialog box asking for the object 
-% path and filename)
-MD.save(); 
 
 % If new MovieData was created (from movieSelectorGUI)
 if ishandle(userData.mainFig), 
@@ -247,49 +256,34 @@ if ishandle(userData.mainFig),
     % Check if files in movie list are saved in the same file
     handles_main = guidata(userData.mainFig);
     contentlist = get(handles_main.listbox_movie, 'String');
-    movieDataFullPath = [MD.movieDataPath_ filesep MD.movieDataFileName_];
+    movieDataFullPath = userData.MD.getFullPath;
     if any(strcmp(movieDataFullPath, contentlist))
         errordlg('Cannot overwrite a movie data file which is already in the movie list. Please choose another file name or another path.','Error','modal');
         return
     end
     
     % Append  MovieData object to movie selector panel
-    userData_main.MD = cat(2, userData_main.MD, MD);
-    
-    % Refresh movie list box in movie selector panel
-    contentlist{end+1} = movieDataFullPath;
-    nMovies = length(contentlist);
-    set(handles_main.listbox_movie, 'String', contentlist, 'Value', nMovies)
-    title = sprintf('Movie List: %s/%s movie(s)', num2str(nMovies), num2str(nMovies));
-    set(handles_main.text_movie_1, 'String', title)
-    
-    % Save the main window data
+    userData_main.MD = horzcat(userData_main.MD, userData.MD);
     set(userData.mainFig, 'UserData', userData_main)
+    movieSelectorGUI('refreshDisplay',userData.mainFig,eventdata,guidata(userData.mainFig));
 end
 % Delete current window
 delete(handles.figure1)
 
 
 function edit_property_Callback(hObject, eventdata, handles)
-% hObject    handle to edit_timeInterval (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
 
-% Hints: get(hObject,'String') returns contents of edit_timeInterval as text
-%        str2double(get(hObject,'String')) returns contents of edit_timeInterval as a double
-
-if ~isempty(get(hObject,'String'))
-    propTag = get(hObject,'Tag');
-    propName = [propTag(length('edit_')+1:end) '_'];
-    propValue = str2double(get(hObject,'String'));
-    if ~MovieData.checkValue(propName,propValue)
-        warndlg('Invalid property value','Setting Error','modal');
-        set(hObject,'BackgroundColor',[1 .8 .8]);
-        return
-    end
-end
 set(hObject,'BackgroundColor',[1 1 1])
+if isempty(get(hObject,'String')), return; end
 
+propTag = get(hObject,'Tag');
+propName = [propTag(length('edit_')+1:end) '_'];
+propValue = str2double(get(hObject,'String'));
+if ~MovieData.checkValue(propName,propValue)
+    warndlg('Invalid property value','Setting Error','modal');
+    set(hObject,'BackgroundColor',[1 .8 .8]);
+    return
+end
 
 % --- Executes on button press in pushbutton_delete.
 function pushbutton_delete_Callback(hObject, eventdata, handles)
@@ -299,21 +293,17 @@ userData = get(handles.figure1, 'Userdata');
 contents = get(handles.listbox_channel,'String');
 % Return if list is empty
 if isempty(contents), return; end
-num = get(handles.listbox_channel,'Value');
+iChan = get(handles.listbox_channel,'Value');
 
 % Delete channel object
-delete(userData.channels(num))
-userData.channels(num) = [];
-
-% Refresh listbox_channel
-contents(num) = [ ];
+delete(userData.channels(iChan))
+userData.channels(iChan) = [];
+contents(iChan) = [ ];
 set(handles.listbox_channel,'String',contents);
 
 % Point 'Value' to the second last item in the list once the 
 % last item has been deleted
-if num>length(contents) && num>1
-    set(handles.listbox_channel,'Value',length(contents));
-end
+set(handles.listbox_channel,'Value',max(1,min(iChan,length(contents))));
 
 set(handles.figure1, 'Userdata', userData)
 guidata(hObject, handles);
@@ -345,28 +335,40 @@ end
 
 % Create path object and save it to userData
 try
-    newChannel= Channel(path);
-    newChannel.sanityCheck();
+    hcstoggle = get(handles.checkbox4, 'Value');
+    if hcstoggle == 1
+        newChannel= Channel(path, 'hcsPlatestack_', 1);
+        if max(size(newChannel))>1
+            for icn = 1:max(size(newChannel))
+                newChannel(icn).sanityCheck();
+            end
+        end
+        
+    else
+        newChannel = Channel(path);
+        newChannel.sanityCheck();
+    end
 catch ME
     errormsg = sprintf('%s.\n\nPlease check this is valid channel.',ME.message);
     errordlg(errormsg,'Channel Error','modal');
     return
 end
 
-userData.channels = cat(2, userData.channels, newChannel);
 % Refresh listbox_channel
+userData.channels = horzcat(userData.channels, newChannel);
+
+if hcstoggle == 1
+    for in = 1:length(userData.channels)
+        ch_name = strcat(userData.channels(in).channelPath_, '-', userData.channels(in).hcsFlags_.wN);
+        contents{end+1} = ch_name{1};
+    end
+else
 contents{end+1} = path;
+end
 set(handles.listbox_channel,'string',contents);
 
-% Set user directory
-sepDir = regexp(path, filesep, 'split');
-dir = sepDir{1};
-for i = 2: length(sepDir)-1
-    dir = [dir filesep sepDir{i}];
-end
-
 if ishandle(userData.mainFig), 
-    userData_main.userDir = dir;
+    userData_main.userDir = fileparts(path);
     set(handles_main.figure1, 'UserData', userData_main)
 end
 
@@ -392,15 +394,50 @@ if isnumeric(pathname), return; end
 
 set(handles.edit_output, 'String', pathname);
 
-
 % --- Executes on button press in pushbutton_setting_chan.
 function pushbutton_setting_chan_Callback(hObject, eventdata, handles)
 
 userData = get(handles.figure1, 'UserData');
-
 if isempty(userData.channels), return; end
-assert( isa(userData.channels(1), 'Channel'), 'User-defined: Not a valid ''Channel'' object');
+assert(isa(userData.channels(1), 'Channel'), 'User-defined: Not a valid ''Channel'' object');
 
 userData.setChannelFig = channelGUI('mainFig', handles.figure1, 'modal');
 
 set(handles.figure1,'UserData',userData);
+
+% --- Executes on button press in pushbutton_bfImport.
+function pushbutton_bfImport_Callback(hObject, eventdata, handles)
+
+assert(bfCheckJavaPath(), 'Could not load the Bio-Formats library');
+
+% Note: list of supported formats could be retrieved using
+% loci.formats.tools.PrintFormatTable class
+[file, path] = uigetfile(bfGetFileExtensions(),...
+    'Select image file to import.');
+if isequal(file,0) || isequal(path,0), return; end
+
+% Import data into movie using bioformats
+importMetadata = logical(get(handles.checkbox_importMetadata,'Value'));
+MD = bfImport([path file], importMetadata);
+
+% Update movie selector interface
+userData=get(handles.figure1,'UserData');
+if ishandle(userData.mainFig), 
+    % Append  MovieData object to movie selector panel
+    userData_main = get(userData.mainFig, 'UserData');
+    userData_main.MD = horzcat(userData_main.MD, MD);
+    set(userData.mainFig, 'UserData', userData_main)
+    movieSelectorGUI('refreshDisplay',userData.mainFig,eventdata,guidata(userData.mainFig))    
+end
+
+% Relaunch this interface in preview mode
+movieDataGUI(MD(end));
+
+
+% --- Executes on button press in checkbox4.
+function checkbox4_Callback(hObject, eventdata, handles)
+% hObject    handle to checkbox4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+%set(handles.checkbox4, 'Value', 1);
+% Hint: get(hObject,'Value') returns toggle state of checkbox4

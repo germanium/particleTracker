@@ -2,6 +2,25 @@ function trackMovie(movieData,varargin)
 % Track features in a movie which has been processed by a detection method
 %
 % Sebastien Besson, 5/2011
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% Input
 %Check input
@@ -29,11 +48,6 @@ trackProc = movieData.processes_{iProc};
 p = parseProcessParams(trackProc,paramsIn);
 
 %% --------------- Initialization ---------------%%
-if feature('ShowFigureWindows'),
-    wtBar = waitbar(0,'Initializing...','Name',trackProc.getName());
-else
-    wtBar=-1;
-end
 
 % Check detection process first
 if isempty(p.DetProcessIndex)
@@ -96,8 +110,5 @@ for i = p.ChannelIndex
         clear M;
     end
 end
-
-% Close waitbar
-if ishandle(wtBar), close(wtBar); end
 
 disp('Finished tracking!')

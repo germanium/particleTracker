@@ -50,6 +50,25 @@ function overlayFeaturesMovie(movieInfo,startend,saveMovie,movieName,...
 %OUTPUT the movie.
 %
 %Khuloud Jaqaman, August 2007
+%
+% Copyright (C) 2014 LCCB 
+%
+% This file is part of u-track.
+% 
+% u-track is free software: you can redistribute it and/or modify
+% it under the terms of the GNU General Public License as published by
+% the Free Software Foundation, either version 3 of the License, or
+% (at your option) any later version.
+% 
+% u-track is distributed in the hope that it will be useful,
+% but WITHOUT ANY WARRANTY; without even the implied warranty of
+% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+% GNU General Public License for more details.
+% 
+% You should have received a copy of the GNU General Public License
+% along with u-track.  If not, see <http://www.gnu.org/licenses/>.
+% 
+% 
 
 %% input - basic
 
@@ -255,11 +274,21 @@ for iFrame = 1 : numFramesMovie
             textDeltaCoord = min(diff(imageRange,[],2))/20;
             text(imageRange(1,1)+textDeltaCoord,imageRange(2,1)+...
                 textDeltaCoord,num2str(iFrame+startend(1)-1),'Color','white');
+            %             text(imageRange(1,1)+textDeltaCoord,imageRange(2,1)+...
+            %                 textDeltaCoord,[num2str(((iFrame+startend(1)-1)-1)*0.025,'%7.3f') ' s'],'Color','white');
+            %             plot([80 207],[50 50],'y:','LineWidth',0.5)
+            %             plot([80 207],[177 177],'y:','LineWidth',0.5)
+            %             plot([80 80],[50 177],'y:','LineWidth',0.5)
+            %             plot([207 207],[50 177],'y:','LineWidth',0.5)
             axes('Position',[0.505 0 0.495 1]);
             imshow(imageStack,intensityMinMax);
             xlim(imageRange(2,:));
             ylim(imageRange(1,:));
             hold on;
+            %             plot([80 207],[50 50],'y:','LineWidth',0.5)
+            %             plot([80 207],[177 177],'y:','LineWidth',0.5)
+            %             plot([80 80],[50 177],'y:','LineWidth',0.5)
+            %             plot([207 207],[50 177],'y:','LineWidth',0.5)
         case 2
             axes('Position',[0 0.505 1 0.495]);
             imshow(imageStack,intensityMinMax);
@@ -287,7 +316,7 @@ for iFrame = 1 : numFramesMovie
     
     %plot features
     if ~isempty(movieInfo(iFrame).xCoord)
-        plot(movieInfo(iFrame).xCoord(:,1),movieInfo(iFrame).yCoord(:,1),'ro','MarkerSize',10);
+        plot(movieInfo(iFrame).xCoord(:,1),movieInfo(iFrame).yCoord(:,1),'ro','MarkerSize',6);
     end
     
     %add frame to movie if movie is saved
