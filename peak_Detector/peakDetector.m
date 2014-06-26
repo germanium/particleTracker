@@ -1,4 +1,4 @@
-function movieInfo = peakDetector(I,bitDepth,minArea, maxEcce, VERBOSE)
+function movieInfo = peakDetector(I,bitDepth,minDiam, maxEcce, VERBOSE)
 % movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
 %
 %
@@ -24,8 +24,8 @@ if nargin < 2 || isempty(bitDepth)
     bitDepth = 16;
 end
 
-if nargin < 3 || isempty(minArea)
-    minArea = 2;
+if nargin < 3 || isempty(minDiam)
+    minDiam = 2;
 end
 
 if nargin < 4 || isempty(maxEcce)
@@ -129,15 +129,16 @@ for i = 1:Nfr                   % Loop though frames and filter
 
     % label slice2 again and get region properties
     featMap2 = bwlabel(slice2);
-    featProp2 = regionprops(featMap2,'PixelIdxList','Area','Eccentricity');
+    featProp2 = regionprops(featMap2,...
+        'PixelIdxList','EquivDiameter','Eccentricity');
 
     % here we sort through features and retain only the "good" ones
     % we assume the good features have area > 2 pixels, and are circular
     % hence eccentricity > 0.8
-    goodFeatIdxA = vertcat(featProp2(:,1).Area) > minArea;
+    goodFeatIdxD = vertcat(featProp2(:,1).EquivDiameter) > minDiam;
     goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < maxEcce;
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
-    goodFeatIdx = goodFeatIdxA & goodFeatIdxE;
+    goodFeatIdx = goodFeatIdxD & goodFeatIdxE;
 
 
     % make new label matrix and get props

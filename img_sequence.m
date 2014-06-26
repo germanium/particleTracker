@@ -94,7 +94,7 @@ function load_img_Callback(hObject, ~, handles)
     'Select images', 'MultiSelect', 'on');
 cd(ImgPathName) 
 
-if ~iscell(ImgFileName)                     % If tif file is a movie
+if ~iscell(ImgFileName)                     % If file is a movie
     
     I = mov2img([ImgPathName ImgFileName], false);
     Nfr = length(I);
@@ -106,7 +106,7 @@ if ~iscell(ImgFileName)                     % If tif file is a movie
         
     [~, handles.FileName] = fileparts(ImgFileName); 
     
-else                                        % If each tif is a frame
+else                                        % If each file is a frame
     
     Nfr = length(ImgFileName);              % # of frames
     I = cell(Nfr,1);
@@ -128,11 +128,11 @@ else                                        % If each tif is a frame
     handles.FileName = ImgFileName{1}(1:(end-7));   
 end
 
-if isdir(handles.FileName)
+if isdir([ImgPathName handles.FileName])    % isdir searches in matlab path
     warning(['Folder ' handles.FileName ' already exist'])
     cd(handles.FileName)
 else
-    mkdir(handles.FileName);                    % To save results in a new folder
+    mkdir(handles.FileName);              	% To save results in a new folder
     cd(handles.FileName)
 end
 
@@ -212,11 +212,11 @@ detPar.algo = get(handles.detection_popup,'Value');
 if detPar.algo == 1                 % Use DoG   
     
     detPar.bitDepth = str2double(get(handles.edit_detParam1, 'String'));
-    detPar.minArea = str2double(get(handles.edit_detParam2, 'String'));
+    detPar.minDiam = str2double(get(handles.edit_detParam2, 'String'));
     detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
 
     movieInfo = peakDetector(handles.I, detPar.bitDepth, ...
-        detPar.minArea, detPar.minEcce, true);
+                             detPar.minDiam, detPar.minEcce, true);
                                     
 elseif detPar.algo == 2             % Use multiscale products
                                     % Initialize structure to store info for tracking
@@ -235,12 +235,12 @@ elseif detPar.algo == 2             % Use multiscale products
                                     
 elseif detPar.algo == 3             % Detect macro object
     
-    detPar.minArea = str2double(get(handles.edit_detParam1, 'String'));
+    detPar.minDiam = str2double(get(handles.edit_detParam1, 'String'));
     detPar.maxArea = str2double(get(handles.edit_detParam2, 'String'));
     detPar.minEcce = str2double(get(handles.edit_detParam3, 'String'));
     detPar.PRCTILE = str2double(get(handles.edit_detParam4, 'String'));
     
-    movieInfo = partDetector(handles.I, [detPar.minArea detPar.maxArea], ...
+    movieInfo = partDetector(handles.I, [detPar.minDiam detPar.maxArea], ...
         detPar.minEcce, detPar.PRCTILE, true);
     
 end
@@ -265,15 +265,15 @@ function apply_detection_frame_Callback(~, ~, handles)
 
 iF = handles.fr; 
 
-if get(handles.detection_popup,'Value') == 1 
+if get(handles.detection_popup,'Value') == 1        % Use DoG 
     
     bitDepth = str2double(get(handles.edit_detParam1, 'String'));
-    area = str2double(get(handles.edit_detParam2, 'String'));
+    diam = str2double(get(handles.edit_detParam2, 'String'));
     ecce = str2double(get(handles.edit_detParam3, 'String'));
 
-    movieInfo = peakDetector(handles.I(iF), bitDepth, area, ecce, true);
+    movieInfo = peakDetector(handles.I(iF), bitDepth, diam, ecce, true);
     
-elseif get(handles.detection_popup,'Value') == 2
+elseif get(handles.detection_popup,'Value') == 2    % Use multiscale products
                                     % Initialize structure to store info for tracking
     [movieInfo(1,1).xCoord] = deal([]);
     [movieInfo(1,1).yCoord] = deal([]);
@@ -284,7 +284,7 @@ elseif get(handles.detection_popup,'Value') == 2
     movieInfo(1,1).yCoord = frameInfo.yCoord;
     movieInfo(1,1).amp = [frameInfo.area zeros(length(frameInfo.area))];    
     
-else
+else                                                % Detect macro object
 
     minArea = str2double(get(handles.edit_detParam1, 'String'));
     maxArea = str2double(get(handles.edit_detParam2, 'String'));
@@ -524,9 +524,9 @@ if method == 1              % DoG
     
     set(handles.text_detParam1, 'String', 'Image bit depth:')
     set(handles.edit_detParam1, 'String', '16')
-    set(handles.text_detParam2, 'String', 'Minimum spot area:')
+    set(handles.text_detParam2, 'String', 'Minimum spot diameter:')
     set(handles.edit_detParam2, 'String', '2')
-    set(handles.edit_detParam2, 'TooltipString', 'Smallest accepted spots, measured in pixels')
+    set(handles.edit_detParam2, 'TooltipString', 'Smallest accepted spots, measured in pixels assuming a circular object')
     set(handles.text_detParam3, 'String', 'Maximum eccentricity:')
     set(handles.edit_detParam3, 'String', '0.8')
     
