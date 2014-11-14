@@ -1,22 +1,16 @@
-function movieInfo = peakDetector(I,bitDepth,minArea, maxEcce, VERBOSE)
-% movieInfo = peakDetector(I,bitDepth,area, ecce, VERBOSE)
+function movieInfo = peakDetector(I, bitDepth, minDiam, maxEcce, VERBOSE)
+% movieInfo = peakDetector(I, bitDepth, minDiam, maxEcce, VERBOSE)
 %
+% I        - Image stack, cell array with one frame per array
+% bitDepth - Bit depth of the images - should be 12, 14, or 16
+% minDiam  - Minimum diameter of the spots to accept. Meausured in pixels, 
+%            assuming a circular object. Default 2
+% maxEcce  - Maximum eccentricity of the spots to accept. 0 is a perfect circle,
+%            1 is a line. Default 0.8
+% VERBOSE  - Verbose option. Default true
 %
-%INPUT  I                 : Image stack, cell array with one frame per array
-%       bitDepth          : Bit depth of the images - should be 12, 14, or 16
-%       area              : Minimum area of the spots to accept. Default 2
-%       ecce              : Minimum eccentricity of the spots to accept. Default 0.8
-%       VERBOSE           : Verbose option. Default true
+% OUTPUT movieInfo - nFrames-structure containing x/y coordinates
 %
-%OUTPUT movieInfo         : nFrames-structure containing x/y coordinates
-%       stdList           : nFrames-vector containing the standard
-%                           deviation of the difference of Gauss-filtered
-%                           images corresponding to each frame. this is
-%                           based on either the user-selected ROI (if
-%                           provided) or a region estimated to be within the
-%                           cell from the background (cell) point (if ROI wasn't
-%                           provided). both the ROI and bg (cell) point 
-%                           are saved during setupRoiDirectories.m
 
 
 % get bit depth if not given
@@ -24,8 +18,8 @@ if nargin < 2 || isempty(bitDepth)
     bitDepth = 16;
 end
 
-if nargin < 3 || isempty(minArea)
-    minArea = 2;
+if nargin < 3 || isempty(minDiam)
+    minDiam = 2;
 end
 
 if nargin < 4 || isempty(maxEcce)
@@ -129,15 +123,16 @@ for i = 1:Nfr                   % Loop though frames and filter
 
     % label slice2 again and get region properties
     featMap2 = bwlabel(slice2);
-    featProp2 = regionprops(featMap2,'PixelIdxList','Area','Eccentricity');
+    featProp2 = regionprops(featMap2,...
+        'PixelIdxList','EquivDiameter','Eccentricity');
 
     % here we sort through features and retain only the "good" ones
     % we assume the good features have area > 2 pixels, and are circular
     % hence eccentricity > 0.8
-    goodFeatIdxA = vertcat(featProp2(:,1).Area) > minArea;
+    goodFeatIdxD = vertcat(featProp2(:,1).EquivDiameter) > minDiam;
     goodFeatIdxE = vertcat(featProp2(:,1).Eccentricity) < maxEcce;
 %     goodFeatIdxI = find(vertcat(featProp2(:,1).MaxIntensity)>2*cutOffValueInitInt);
-    goodFeatIdx = goodFeatIdxA & goodFeatIdxE;
+    goodFeatIdx = goodFeatIdxD & goodFeatIdxE;
 
 
     % make new label matrix and get props
@@ -174,9 +169,9 @@ for i = 1:Nfr                   % Loop though frames and filter
     end
 
     % make structure compatible with Khuloud's tracker
-    movieInfo(i,1).xCoord = xCoord;         % Can't save it as single for Khuloud's tracker
+    movieInfo(i,1).xCoord = xCoord;  	% Can't save it as single for Khuloud's tracker
     movieInfo(i,1).yCoord = yCoord;
-    movieInfo(i,1).amp = amp;          % amp should be intensity not area!
+    movieInfo(i,1).amp = amp;           % amp should be intensity not area!
     movieInfo(i,1).int = featI;
 
     
