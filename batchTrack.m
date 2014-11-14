@@ -88,10 +88,6 @@ parfor iM=1:length(pathList);              % Go through movies
     
     fprintf(['\n--------Processing movie ' movName '--------\n\n'])
 
-%     I = cell(length(imfinfo(pathList{iM})), 1);
-%     for iFr=1:length(imfinfo(pathList{iM}))
-%         I{iFr} = imread(pathList{iM}, iFr);
-%     end
     data = bfopen(pathList{iM});          	% Load data 
     I = data{1}(:,1);
                                             % Detection     
@@ -105,11 +101,11 @@ parfor iM=1:length(pathList);              % Go through movies
     
 % -----------------------Analysis---------------------------------
                                             
-    T = tracks2cell(tracksFinal);           % Only need 3 pts for diffCoeff2
-    T_msd = msdAtTau(T, 3, detParam.DT, detParam.pxSize);
-    [D, alpha] = diffCoeff2(T_msd, 2);
-    DA = [D', alpha'];
-    DAmean = nanmean(DA, 1);
+    T = tracks2cellT(tracksFinal);           
+%     T_msd = msdAtTau(T, 3, detParam.DT, detParam.pxSize);     % Only need 3 pts for diffCoeff2
+%     [D, alpha] = diffCoeff2(T_msd, 2);
+%     DA = [D', alpha'];
+%     DAmean = nanmean(DA, 1);
     
 % -----------------------Save Results------------------------------
 
@@ -127,12 +123,16 @@ parfor iM=1:length(pathList);              % Go through movies
     close(htracks)
                                         % Save parameters
     Tr_parameters = {['Maximum gap length: ', num2str(trackParam.gapCloseParam.timeWindow)];...
-        ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
+           ['Minimum track segment length: ', num2str(trackParam.gapCloseParam.minTrackLen)]};
 
-    parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters,...
-        DA, DAmean);
+    parsave('tracksFinal.mat', tracksFinal, im, Tr_parameters)
 
-    DT = detParam.DT;  pxSize = detParam.pxSize;
+    DT = detParam.DT;
+    if isscalar(detParam.pxSize)
+        pxSize = detParam.pxSize;
+    else                                % If variable pixelSize
+        pxSize = detParam.pxSize(iM);
+    end
     parsave('T.mat', T, DT, pxSize)
                                             % Save to ascii
 %     parsave('D_and_alpha.txt', DA, '-ascii')
@@ -148,6 +148,7 @@ end
 cd(PWD)
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function saveASCII(tracksFinal)
 % Save tracksFinal in Gianguido format
 T = tracks2cellT(tracksFinal);      % Gaps are not interpolated.
@@ -162,7 +163,7 @@ for i=1:length(T)
     end
 end
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 function msd = msdAtTau(T, tauAna, DT, pxSize)
 % tauAna - Tau at which MSD is calculated. In frames
 % DT     - Time interval, in seconds
